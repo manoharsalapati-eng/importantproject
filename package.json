@@ -1,0 +1,14 @@
+{
+  "name": "food-vision-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Client-side computer-vision lab for food colorimetry, microstructure and shrinkage analysis (single HTML file).",
+  "scripts": {
+    "test": "node tests/core.test.mjs && node tests/browser.test.mjs",
+    "test:core": "node tests/core.test.mjs",
+    "test:browser": "node tests/browser.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
