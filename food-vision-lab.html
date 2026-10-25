@@ -159,6 +159,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
 .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .src-note { font-size: 12px; color: var(--ink-2); background: var(--bg); border-radius: 6px; padding: 7px 9px; border: 1px solid var(--line); }
 .src-note b { font-weight: 600; }
+.patch-list { display: grid; gap: 4px; }
+.patch-row { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr)) 26px; gap: 4px; align-items: center; }
+.patch-row span { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.patch-row input { height: 28px; padding: 0 5px; }
+.patch-row button { appearance: none; border: 1px solid var(--line-strong); background: transparent; color: var(--ink-2); border-radius: 6px; height: 28px; cursor: pointer; }
 
 /* ---------- Image stage ---------- */
 .stage-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -352,6 +357,12 @@ footer.foot { margin-top: 28px; color: var(--muted); font-size: 12px; display: f
           <label class="field"><span>b*</span><input id="c-wb" type="number" step="0.1" value="1.8"></label>
         </div>
         <p class="hint" id="c-white-info">Draw a rectangle on the white tile with the <strong>White ROI</strong> tool.</p>
+        <label class="field"><span>Correction</span>
+          <select id="c-calib"><option value="white">White tile: per-channel gains</option><option value="matrix">Colour chart: tone curve + 3×3 matrix</option></select>
+        </label>
+        <div class="field-label">Reference patches (certified L*a*b*)</div>
+        <div id="c-patch-list" class="patch-list"></div>
+        <p class="hint" id="c-calib-info">Add patches of a colour chart with the <strong>Patch</strong> tool, then type each patch's certified values. The matrix needs 4 or more references (the white tile counts); 3 or more grey patches also fix the camera's tone curve.</p>
       </div>
       <div class="group">
         <h2 class="group-title">ΔE reference</h2>
@@ -388,6 +399,7 @@ footer.foot { margin-top: 28px; color: var(--muted); font-size: 12px; display: f
           <button type="button" data-tool="probe" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 0.5v4M8 11.5v4M0.5 8h4M11.5 8h4" stroke="currentColor" stroke-width="1.4"/></svg>Probe</button>
           <button type="button" data-tool="white" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>White ROI</button>
           <button type="button" data-tool="ref" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1" fill="currentColor" opacity="0.35" stroke="currentColor" stroke-width="1.4"/></svg>Reference ROI</button>
+          <button type="button" data-tool="patch" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" fill="currentColor" opacity="0.5"/><rect x="9" y="1.5" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="9" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5.5" height="5.5" fill="currentColor" opacity="0.5"/></svg>Patch</button>
           <button type="button" data-tool="pick" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l6.5-6.5M9 3.5l3.5 3.5M10.8 1.8l3.4 3.4-2 2-3.4-3.4z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>Pick ref</button>
           <button type="button" data-tool="line" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5l11-11" stroke="currentColor" stroke-width="1.4"/><circle cx="2.5" cy="13.5" r="1.6" fill="currentColor"/><circle cx="13.5" cy="2.5" r="1.6" fill="currentColor"/></svg>Profile</button>
         </div>
@@ -469,6 +481,7 @@ f(t) = t^(1/3) if t > (6/29)³ else (841/108)t + 4/29,  (Xn,Yn,Zn) = (0.95047, 1
 BI = 100 (x − 0.31) / 0.17,  x = (a* + 1.75 L*) / (5.645 L* + a* − 3.012 b*)
 WI = 100 − √((100 − L*)² + a*² + b*²)</span>
         <p>ΔE00 follows Sharma, Wu &amp; Dalal (2005) with k<sub>L</sub> = k<sub>C</sub> = k<sub>H</sub> = 1 and is verified on their 34 reference pairs in the Validation tab. ΔE classes: &lt;1 not perceptible, 1–2 close observation, 2–3.5 perceptible, 3.5–5 clear, ≥5 different colours.</p>
+        <p>Colour-chart mode replaces the sRGB curve with a per-channel tone curve through the grey patches (ln linear vs ln code, when 3 or more greys are present) and the diagonal gains with a least-squares 3×3 matrix fitted to all reference patches. The calibration table then shows leave-one-out errors: each patch predicted by a matrix fitted without it.</p>
         <p>The automatic mask takes the median colour of a thin image border as background, thresholds ΔE*ab from it with Otsu's method, opens (r = 2 px), fills holes and keeps the largest object.</p>
       </section>
     </div>
@@ -523,6 +536,7 @@ WI = 100 − √((100 − L*)² + a*² + b*²)</span>
           <label class="field"><span>Connectivity</span><select id="m-conn"><option value="8">8-neighbour</option><option value="4">4-neighbour</option></select></label>
         </div>
         <label class="check"><input type="checkbox" id="m-border" checked> Exclude objects cut by the edge</label>
+        <p class="hint">Size statistics then weight each object by how likely it was to avoid the edge (Miles–Lantuéjoul), because large objects are cut more often.</p>
       </div>
       <div class="group">
         <h2 class="group-title">Distribution basis</h2>
@@ -564,7 +578,7 @@ WI = 100 − √((100 − L*)² + a*² + b*²)</span>
         <div class="chart" id="m-cdf"></div>
       </div>
       <div class="card" id="m-truth-card" hidden>
-        <h3>Ground truth comparison <small>synthetic image</small></h3>
+        <h3>Ground truth comparison <small>sizes vs every object centred in the frame</small></h3>
         <div class="table-wrap compact" style="max-height:none"><table id="m-truth"></table></div>
       </div>
     </div>
@@ -588,7 +602,8 @@ WI = 100 − √((100 − L*)² + a*² + b*²)</span>
       <section>
         <h4>Segmentation</h4>
         <p>Grey = Rec. 709 luma. Separable Gaussian (±4σ kernel, replicate borders). Otsu's threshold maximises between-class variance on a 256-bin histogram. Opening and closing use a Euclidean disk B<sub>r</sub> and are computed exactly from the distance transform (validated pixel-for-pixel against brute-force structuring elements).</p>
-        <p>The exact Euclidean distance transform uses the Felzenszwalb–Huttenlocher lower-envelope algorithm. Markers are the h-maxima of the distance map (grey-level reconstruction by dilation, Vincent's hybrid algorithm); the watershed is Meyer's priority flooding of −EDT restricted to the foreground. Without watershed, objects are labelled by two-pass union–find.</p>
+        <p>The exact Euclidean distance transform uses the Felzenszwalb–Huttenlocher lower-envelope algorithm. Markers are the h-maxima of the distance map: the regional maxima of the reconstruction by dilation of (D − h) under D (Vincent's hybrid algorithm), so hills whose dip to an equal or higher hill is under h share one marker. The watershed is Meyer's priority flooding of −EDT restricted to the foreground. Without watershed, objects are labelled by two-pass union–find.</p>
+        <p>When edge-cut objects are excluded, each counted object of bounding box b<sub>w</sub>×b<sub>h</sub> gets weight W·H / ((W − b<sub>w</sub> − 1)(H − b<sub>h</sub> − 1)) in every size statistic (Miles–Lantuéjoul correction).</p>
       </section>
       <section>
         <h4>Per-object measures</h4>
@@ -1349,17 +1364,41 @@ function reconstructByDilation(marker, maskImg, dom, w, h) {
   }
   return J;
 }
-/* h-maxima markers of the distance map: regional maxima with dynamic >= h.
-   Returns { markers: Int32Array labels, count }. */
+/* Regional maxima of `img` inside `dom`: 8-connected plateaus of equal value
+   (within eps) with no higher neighbour. Returns { markers: Int32Array labels, count }. */
+function regionalMaxima(img, dom, w, h, eps = 1e-5) {
+  const N = w * h, lab = new Int32Array(N), q = new Int32Array(N);
+  let count = 0;
+  for (let s = 0; s < N; s++) {
+    if (!dom[s] || lab[s] !== 0) continue;
+    const v = img[s];
+    let head = 0, tail = 0, isMax = true;
+    q[tail++] = s; lab[s] = -1;                    // -1: in the plateau being flooded
+    while (head < tail) {
+      const i = q[head++], x = i % w, y = (i / w) | 0;
+      for (let k = 0; k < 8; k++) {
+        const xx = x + N8[k][0], yy = y + N8[k][1];
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const j = yy * w + xx;
+        if (!dom[j]) continue;
+        if (img[j] > v + eps) isMax = false;
+        else if (Math.abs(img[j] - v) <= eps && lab[j] === 0) { lab[j] = -1; q[tail++] = j; }
+      }
+    }
+    const id = isMax ? ++count : -2;                // -2: visited, not a maximum
+    for (let t = 0; t < tail; t++) lab[q[t]] = id;
+  }
+  for (let i = 0; i < N; i++) if (lab[i] < 0) lab[i] = 0;
+  return { markers: lab, count };
+}
+/* h-maxima markers of the distance map (textbook definition): the regional maxima of
+   R = reconstruction of (D − h) under D. A hill whose dip to an equal or higher hill is
+   less than h joins that hill's plateau of R and so shares its marker. */
 function hMaximaMarkers(dist, fg, w, h, hval) {
   const marker = new Float32Array(dist.length);
   for (let i = 0; i < marker.length; i++) marker[i] = dist[i] - hval;
   const R = reconstructByDilation(marker, dist, fg, w, h);
-  const top = new Uint8Array(dist.length);
-  const eps = 1e-4 * Math.max(1, hval);
-  for (let i = 0; i < top.length; i++) top[i] = fg[i] && dist[i] - R[i] >= hval - eps ? 1 : 0;
-  const { labels, count } = labelComponents(top, w, h, 8);
-  return { markers: labels, count };
+  return regionalMaxima(R, fg, w, h, 1e-5 * Math.max(1, hval));
 }
 /* Marker-controlled watershed (Meyer's priority flooding) of `relief`
    (lower floods first) restricted to `domain`. No watershed lines. */
@@ -1448,7 +1487,7 @@ function linreg(X, Y) {
 Object.assign(FVL, {
   grayscale, gaussianKernel, gaussianBlur, histogram256, otsu, otsuFromHist, sqEDT, distanceTransform,
   erode, dilate, opening, closing, erodeBrute, dilateBrute, fillHoles, labelComponents, labelBFS, keepLargest,
-  reconstructByDilation, hMaximaMarkers, watershed, boundaryMask, boxCount, linreg, Heap
+  reconstructByDilation, regionalMaxima, hMaximaMarkers, watershed, boundaryMask, boxCount, linreg, Heap
 });
 
 /* ---------------------------------------------------------------------
@@ -1647,18 +1686,24 @@ function fitWeibull(d, w) {
 }
 
 /* Size-distribution statistics on equivalent diameters d (any length unit).
-   weighting: 'number' (w=1), 'area' (w=d²) or 'volume' (w=d³). */
-function sizeStats(dIn, weighting = 'volume') {
-  const d = Float64Array.from(dIn.filter((v) => v > 0 && Number.isFinite(v))).sort();
+   weighting: 'number' (w=1), 'area' (w=d²) or 'volume' (w=d³).
+   countWeights (optional): how many particles each measured one stands for, e.g. the
+   Miles–Lantuéjoul edge correction; all moments and percentiles use them. */
+function sizeStats(dIn, weighting = 'volume', countWeights) {
+  const idx = [];
+  for (let i = 0; i < dIn.length; i++) if (dIn[i] > 0 && Number.isFinite(dIn[i])) idx.push(i);
+  idx.sort((p, q) => dIn[p] - dIn[q]);
+  const d = Float64Array.from(idx, (i) => dIn[i]);
+  const cw = Float64Array.from(idx, (i) => (countWeights ? countWeights[i] : 1));
   const n = d.length;
   if (n < 2) return null;
   const kpow = weighting === 'number' ? 0 : weighting === 'area' ? 2 : 3;
   const w = new Float64Array(n);
-  let W = 0, S1 = 0, S2 = 0, S3 = 0, S4 = 0;
+  let W = 0, C0 = 0, S1 = 0, S2 = 0, S3 = 0, S4 = 0;
   for (let i = 0; i < n; i++) {
-    const v = d[i], v2 = v * v;
-    w[i] = Math.pow(v, kpow); W += w[i];
-    S1 += v; S2 += v2; S3 += v2 * v; S4 += v2 * v2;
+    const v = d[i], v2 = v * v, c = cw[i];
+    w[i] = c * Math.pow(v, kpow); W += w[i]; C0 += c;
+    S1 += c * v; S2 += c * v2; S3 += c * v2 * v; S4 += c * v2 * v2;
   }
   const F = new Float64Array(n), Fb = new Float64Array(n), Fa = new Float64Array(n);
   let c = 0;
@@ -1670,9 +1715,9 @@ function sizeStats(dIn, weighting = 'volume') {
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (F[m] <= p) lo = m; else hi = m; }
     return d[lo] + (d[hi] - d[lo]) * (p - F[lo]) / (F[hi] - F[lo] || 1);
   };
-  const mean = S1 / n;
-  let ss = 0; for (let i = 0; i < n; i++) ss += (d[i] - mean) * (d[i] - mean);
-  const sd = Math.sqrt(ss / (n - 1));
+  const mean = S1 / C0;
+  let ss = 0; for (let i = 0; i < n; i++) ss += cw[i] * (d[i] - mean) * (d[i] - mean);
+  const sd = Math.sqrt(ss / C0 * n / (n - 1));
   const D10 = pct(0.1), D50 = pct(0.5), D90 = pct(0.9);
   const ln = fitLogNormal(d, w), rr = fitWeibull(d, w);
   const gof = (cdf) => {
@@ -1700,7 +1745,7 @@ function sizeStats(dIn, weighting = 'volume') {
   for (let i = 0; i < n; i++) frac[Math.min(nb - 1, Math.floor(d[i] / width))] += w[i] / W;
   return {
     n, weighting, mean, sd, cv: sd / mean, min: d[0], max: d[n - 1],
-    d10: mean, d20: Math.sqrt(S2 / n), d30: Math.cbrt(S3 / n), d32: S3 / S2, d43: S4 / S3,
+    d10: mean, d20: Math.sqrt(S2 / C0), d30: Math.cbrt(S3 / C0), d32: S3 / S2, d43: S4 / S3, edgeCorrected: !!countWeights,
     D10, D50, D90, span: (D90 - D10) / D50,
     lognormal, rosin,
     best: (Number.isFinite(rosin.ks) && rosin.ks < lognormal.ks) ? 'rosin' : 'lognormal',
@@ -1813,6 +1858,48 @@ function autoSampleMask(L, A, B, w, h, exclude, largestOnly) {
   return { mask: m, background: bg, threshold: t * dmax / 255 };
 }
 
+/* ---- Colour-chart calibration: per-channel tone curve from grey patches + 3×3 matrix ---- */
+function patchMeans(data, w, h, rect) {              // mean 8-bit R, G, B inside a rect (15 % inset)
+  const r = clampRect(rect, w, h), inset = Math.floor(Math.min(r.w, r.h) * 0.15), s = [0, 0, 0];
+  let n = 0;
+  for (let y = r.y + inset; y < r.y + r.h - inset; y++) for (let x = r.x + inset; x < r.x + r.w - inset; x++) {
+    const j = 4 * (y * w + x); s[0] += data[j]; s[1] += data[j + 1]; s[2] += data[j + 2]; n++;
+  }
+  return s.map((v) => v / Math.max(1, n));
+}
+// Per-channel 256-entry LUT code → linear, interpolating ln(linear) against ln(code) through grey patches.
+function toneLut(greys) {                             // greys: [{ code: [R,G,B], Y }] with ≥ 3 entries
+  return [0, 1, 2].map((k) => {
+    const p = greys.map((g) => [Math.log(Math.max(g.code[k], 0.5)), Math.log(g.Y)]).sort((a, b) => a[0] - b[0]);
+    const lut = new Float64Array(256);
+    for (let v = 0; v < 256; v++) {
+      const x = Math.log(Math.max(v, 0.5));
+      let i = 1;
+      while (i < p.length - 1 && x > p[i][0]) i++;
+      const [x0, y0] = p[i - 1], [x1, y1] = p[i];
+      lut[v] = Math.exp(y0 + (y1 - y0) * (x - x0) / ((x1 - x0) || 1));
+    }
+    return lut;
+  });
+}
+function inv3x3(m) {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det, B / det, (a * i - c * g) / det, -(a * f - c * d) / det, C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+// Least-squares 3×3 matrix M with ref ≈ M · cam (normal equations per output channel).
+function fitColorMatrix(cam, ref) {
+  const XtX = new Array(9).fill(0), XtY = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let n = 0; n < cam.length; n++) for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) XtX[i * 3 + j] += cam[n][i] * cam[n][j];
+    for (let c = 0; c < 3; c++) XtY[c][i] += cam[n][i] * ref[n][c];
+  }
+  const inv = inv3x3(XtX), M = [];
+  for (let c = 0; c < 3; c++) for (let j = 0; j < 3; j++) M.push(inv[j * 3] * XtY[c][0] + inv[j * 3 + 1] * XtY[c][1] + inv[j * 3 + 2] * XtY[c][2]);
+  return M;
+}
+const mat3v = (M, v) => [M[0] * v[0] + M[1] * v[1] + M[2] * v[2], M[3] * v[0] + M[4] * v[1] + M[5] * v[2], M[6] * v[0] + M[7] * v[1] + M[8] * v[2]];
+
 function analyzeColor(img, o = {}) {
   const T = {}; let t0 = nowMs();
   const { width: w, height: h, data } = img, N = w * h;
@@ -1832,6 +1919,28 @@ function analyzeColor(img, o = {}) {
     white = { rect: whiteRect, measuredLin: meas, measuredLab: linearToLab(meas[0], meas[1], meas[2]), targetLin: target, gains: g, clippedFraction: clip / n };
     if (o.normalize !== false) gains = g;
   }
+  // Default: sRGB curve + diagonal white-tile gains. Matrix mode: tone curve from grey patches
+  // (if ≥ 3 greys incl. the tile) and a least-squares 3×3 matrix fitted to every reference patch.
+  let luts = [S2L, S2L, S2L], CM = [gains[0], 0, 0, 0, gains[1], 0, 0, 0, gains[2]], calib = { mode: 'white' };
+  const refs = (o.patches || []).map((p) => ({ name: p.name, rect: p.rect, lab: p.lab }));
+  if (whiteRect) refs.push({ name: 'White tile', rect: whiteRect, lab: whiteLab, tile: true });
+  if (o.calibration === 'matrix') {
+    if (refs.length < 4) calib = { mode: 'white', note: 'Matrix calibration needs at least 4 reference patches (the white tile counts); using white-tile gains.' };
+    else {
+      for (const r of refs) { r.code = patchMeans(data, w, h, r.rect); r.target = labToLinear(r.lab.L, r.lab.a, r.lab.b); }
+      const greys = refs.filter((r) => Math.abs(r.lab.a) < 2 && Math.abs(r.lab.b) < 3).map((r) => ({ code: r.code, Y: labToXyz(r.lab.L, 0, 0)[1] }));
+      if (greys.length >= 3) luts = toneLut(greys);
+      const camOf = (r) => [luts[0][Math.round(r.code[0])], luts[1][Math.round(r.code[1])], luts[2][Math.round(r.code[2])]];
+      CM = fitColorMatrix(refs.map(camOf), refs.map((r) => r.target));
+      // Honest check: each patch predicted by a matrix fitted without it (leave-one-out).
+      const loo = refs.map((r, n) => {
+        const others = refs.filter((_, m) => m !== n), M = fitColorMatrix(others.map(camOf), others.map((q) => q.target));
+        const lab = linearToLab(...mat3v(M, camOf(r)));
+        return deltaE2000(lab[0], lab[1], lab[2], r.lab.L, r.lab.a, r.lab.b);
+      });
+      calib = { mode: 'matrix', matrix: CM, toneCurve: greys.length >= 3, greys: greys.length, references: refs.length, loo: refs.map((r, n) => ({ name: r.name, dE00: loo[n] })) };
+    }
+  }
   T.calibration = nowMs() - t0; t0 = nowMs();
 
   const L = new Float32Array(N), A = new Float32Array(N), B = new Float32Array(N);
@@ -1839,9 +1948,10 @@ function analyzeColor(img, o = {}) {
   const enc = new Uint8ClampedArray(4097);
   for (let i = 0; i <= 4096; i++) enc[i] = Math.round(linearToSrgb(i / 4096) * 255);
   const lab = [0, 0, 0];
-  const g0 = gains[0], g1 = gains[1], g2 = gains[2];
+  const [l0, l1, l2] = luts;
   for (let i = 0, j = 0; i < N; i++, j += 4) {
-    const r = S2L[data[j]] * g0, g = S2L[data[j + 1]] * g1, b = S2L[data[j + 2]] * g2;
+    const r0 = l0[data[j]], g0 = l1[data[j + 1]], b0 = l2[data[j + 2]];
+    const r = CM[0] * r0 + CM[1] * g0 + CM[2] * b0, g = CM[3] * r0 + CM[4] * g0 + CM[5] * b0, b = CM[6] * r0 + CM[7] * g0 + CM[8] * b0;
     linearToLab(r, g, b, lab);
     L[i] = lab[0]; A[i] = lab[1]; B[i] = lab[2];
     cal[j] = enc[r >= 1 ? 4096 : (r * 4096) | 0]; cal[j + 1] = enc[g >= 1 ? 4096 : (g * 4096) | 0]; cal[j + 2] = enc[b >= 1 ? 4096 : (b * 4096) | 0]; cal[j + 3] = 255;
@@ -1947,14 +2057,16 @@ function analyzeColor(img, o = {}) {
     const raw = linearToLab(rr / n, rg / n, rb / n);
     return {
       name: p.name, rect: r, nominal: p.lab, measured: meas, raw: { L: raw[0], a: raw[1], b: raw[2] },
-      dE00: deltaE2000(meas.L, meas.a, meas.b, p.lab.L, p.lab.a, p.lab.b),
+      // In matrix mode the patches trained the matrix, so report the leave-one-out error instead.
+      dE00: calib.loo ? calib.loo.find((q) => q.name === p.name).dE00 : deltaE2000(meas.L, meas.a, meas.b, p.lab.L, p.lab.a, p.lab.b),
+      loo: !!calib.loo,
       dE00raw: deltaE2000(raw[0], raw[1], raw[2], p.lab.L, p.lab.a, p.lab.b)
     };
   });
   T.stats = nowMs() - t0;
 
   return {
-    width: w, height: h, formula, gains, white, ref, refRect, mask, maskArea, maskInfo,
+    width: w, height: h, formula, gains, white, calib, ref, refRect, mask, maskArea, maskInfo,
     maps: { L, a: A, b: B, dE, BI, WI, C, h: H }, calibrated: { width: w, height: h, data: cal },
     stats, hist, abHist: { n: AB, lo: abLo, hi: abHi, counts: Array.from(ab), max: abMax }, classes, classEdges: edges, patches, timings: T
   };
@@ -1976,10 +2088,11 @@ function analyzeParticles(img, o = {}) {
   const blur = gaussianBlur(gray, w, h, +o.sigma || 0); T.blur = nowMs() - t0; t0 = nowMs();
   const ot = otsu(blur);
   const thr = o.thresholdMode === 'manual' && Number.isFinite(+o.threshold) ? +o.threshold : ot.t;
-  let above = 0; for (let i = 0; i < N; i++) if (blur[i] > thr) above++;
+  // Compare rounded values: Otsu put grey g in class 0 when Math.round(g) <= t.
+  let above = 0; for (let i = 0; i < N; i++) if (Math.round(blur[i]) > thr) above++;
   const bright = o.polarity === 'bright' ? true : o.polarity === 'dark' ? false : above / N <= 0.5;
   const binary = new Uint8Array(N);
-  for (let i = 0; i < N; i++) binary[i] = bright ? (blur[i] > thr ? 1 : 0) : (blur[i] <= thr ? 1 : 0);
+  for (let i = 0; i < N; i++) binary[i] = (Math.round(blur[i]) > thr) === bright ? 1 : 0;
   T.threshold = nowMs() - t0; t0 = nowMs();
   let morph = opening(binary, w, h, +o.openR || 0);
   morph = closing(morph, w, h, +o.closeR || 0);
@@ -1998,11 +2111,16 @@ function analyzeParticles(img, o = {}) {
     const cc = labelComponents(morph, w, h, +o.conn === 4 ? 4 : 8);
     labels = cc.labels; count = cc.count; T.labelling = nowMs() - t0; t0 = nowMs();
   }
-  const minArea = +o.minArea || 0;
+  const minArea = +o.minArea || 0, edgeCorr = o.excludeBorder !== false;
   const raw = measureObjects(labels, count, w, h);
   const particles = raw.map((p) => {
-    const status = p.area < minArea ? 'small' : (o.excludeBorder !== false && p.touchesBorder ? 'border' : 'ok');
+    const status = p.area < minArea ? 'small' : (edgeCorr && p.touchesBorder ? 'border' : 'ok');
+    // Miles–Lantuéjoul: a bw×bh object avoids the edge in only (w−bw−1)(h−bh−1) of w·h positions,
+    // so each counted object stands for w·h / that many objects. Large ones count for more.
+    const bw = p.bbox[2] - p.bbox[0] + 1, bh = p.bbox[3] - p.bbox[1] + 1;
+    const edgeWeight = edgeCorr ? (w * h) / Math.max(1, (w - bw - 1) * (h - bh - 1)) : 1;
     return {
+      edgeWeight,
       id: p.id, status, areaPx: p.area,
       area: p.area * scale * scale, ecd: p.ecd * scale, perimeter: p.perimeter * scale,
       feretMax: p.feretMax * scale, feretMin: p.feretMin * scale, feretAngle: p.feretAngle,
@@ -2013,7 +2131,7 @@ function analyzeParticles(img, o = {}) {
   });
   T.measure = nowMs() - t0; t0 = nowMs();
   const ok = particles.filter((p) => p.status === 'ok');
-  const stats = sizeStats(ok.map((p) => p.ecd), o.weighting || 'volume');
+  const stats = sizeStats(ok.map((p) => p.ecd), o.weighting || 'volume', edgeCorr ? ok.map((p) => p.edgeWeight) : null);
   let fg = 0; for (let i = 0; i < N; i++) fg += morph[i];
   const areaMm2 = N * scale * scale * (o.unitToMm || 1e-3) * (o.unitToMm || 1e-3);
   const notSmall = particles.filter((p) => p.status !== 'small').length;
@@ -2042,10 +2160,10 @@ function segmentObject(img, o = {}) {
   const { width: w, height: h } = img, N = w * h;
   const blur = gaussianBlur(grayscale(img), w, h, o.sigma == null ? 1.5 : +o.sigma);
   const t = otsu(blur).t;
-  let above = 0; for (let i = 0; i < N; i++) if (blur[i] > t) above++;
+  let above = 0; for (let i = 0; i < N; i++) if (Math.round(blur[i]) > t) above++;
   const bright = o.polarity === 'bright' ? true : o.polarity === 'dark' ? false : above / N <= 0.5;
   let m = new Uint8Array(N);
-  for (let i = 0; i < N; i++) m[i] = bright ? (blur[i] > t ? 1 : 0) : (blur[i] <= t ? 1 : 0);
+  for (let i = 0; i < N; i++) m[i] = (Math.round(blur[i]) > t) === bright ? 1 : 0;
   m = opening(m, w, h, o.openR == null ? 2 : +o.openR);
   m = closing(m, w, h, o.closeR == null ? 2 : +o.closeR);
   m = fillHoles(m, w, h);
@@ -2176,11 +2294,12 @@ function genEmulsion(seed = 11, o = {}) {
   const inside = drops.filter((d) => d.x - d.r >= 1 && d.y - d.r >= 1 && d.x + d.r <= W - 2 && d.y + d.r <= H - 2);
   let gtA = 0; for (let i = 0; i < gt.length; i++) gtA += gt[i];
   const diam = inside.map((d) => 2 * d.r * scale);
+  const all = drops.filter((d) => d.x >= 0 && d.y >= 0 && d.x < W && d.y < H).map((d) => 2 * d.r * scale);
   return {
     image: img,
     meta: { kind: 'emulsion', title: 'O/W emulsion · confocal (Nile Red)', scale, unit: 'µm', objectName: 'Droplet', fractionLabel: 'Dispersed-phase area fraction', fractionShort: 'Oil area fraction' },
     defaults: { sigma: 1.0, thresholdMode: 'otsu', polarity: 'bright', openR: 1, closeR: 0, fillHoles: true, watershed: true, h: 0.5, conn: 8, minArea: 12, excludeBorder: true, weighting: 'volume', scale },
-    truth: { count: inside.length, placed: drops.length, diameters: diam, centers: inside.map((d) => [d.x, d.y, d.r]), areaFraction: gtA / (W * H), stats: sizeStats(diam, 'volume'), statsNumber: sizeStats(diam, 'number'), lnMu: mu + Math.log(2 * scale), lnSigma: sg }
+    truth: { count: inside.length, placed: drops.length, diameters: diam, centers: inside.map((d) => [d.x, d.y, d.r]), diametersAll: all, statsAll: sizeStats(all, 'volume'), areaFraction: gtA / (W * H), stats: sizeStats(diam, 'volume'), statsNumber: sizeStats(diam, 'number'), lnMu: mu + Math.log(2 * scale), lnSigma: sg }
   };
 }
 
@@ -2313,11 +2432,12 @@ function genPowder(seed = 3, o = {}) {
   const img = grayToImage(Ib, W, H, [1, 0.98, 0.94, 0, 0, 0], R, 3);
   const inside = parts.filter((p) => p.poly.every((q) => q[0] >= 1 && q[1] >= 1 && q[0] <= W - 2 && q[1] <= H - 2));
   const diam = inside.map((p) => 2 * p.r * scale);
+  const all = parts.filter((p) => p.x >= 0 && p.y >= 0 && p.x < W && p.y < H).map((p) => 2 * p.r * scale);
   return {
     image: img,
     meta: { kind: 'powder', title: 'Milk powder · back-lit micrograph', scale, unit: 'µm', objectName: 'Particle', fractionLabel: 'Projected area fraction', fractionShort: 'Projected area' },
     defaults: { sigma: 1.0, thresholdMode: 'otsu', polarity: 'dark', openR: 1, closeR: 1, fillHoles: true, watershed: true, h: 1.0, conn: 8, minArea: 20, excludeBorder: true, weighting: 'volume', scale },
-    truth: { count: inside.length, placed: parts.length, diameters: diam, centers: inside.map((p) => [p.x, p.y, p.r]), areaFraction: gtA / (W * H), stats: sizeStats(diam, 'volume'), rrK: 2.6, rrLambda: 28 * scale }
+    truth: { count: inside.length, placed: parts.length, diameters: diam, centers: inside.map((p) => [p.x, p.y, p.r]), diametersAll: all, statsAll: sizeStats(all, 'volume'), areaFraction: gtA / (W * H), stats: sizeStats(diam, 'volume'), rrK: 2.6, rrLambda: 28 * scale }
   };
 }
 
@@ -2647,12 +2767,27 @@ function buildTests() {
     for (let i = 0; i < r.mask.length; i++) { const a = r.mask[i], b = s.truth.sampleMask[i]; if (a && b) inter++; if (a || b) uni++; }
     return { measured: f3(inter / uni, 4), expected: '1', tol: '> 0.98', pass: inter / uni > 0.98 };
   });
-  test('Colorimetry', 'ΔE map is zero at the reference colour', () => {
+  test('Colorimetry', 'ΔE map equals a direct ΔE00 calculation at the picked pixel', () => {
     const s = scene();
     const r = analyzeColor(s.image, { ...s.defaults, refMode: 'pixel', refPoint: { x: 285, y: 280 } });
     const i = 280 * r.width + 285; const c = r.ref;
     const d = deltaE2000(r.maps.L[i], r.maps.a[i], r.maps.b[i], c.L, c.a, c.b);
-    return { measured: `ΔE00 ${f3(r.maps.dE[i], 3)} (direct ${f3(d, 3)})`, expected: 'equal, small', tol: '|diff| < 1e-4', pass: Math.abs(r.maps.dE[i] - d) < 1e-4 && r.maps.dE[i] < 3 };
+    return { measured: `ΔE00 ${f3(r.maps.dE[i], 3)} (direct ${f3(d, 3)})`, expected: 'equal, small (reference is a 5 × 5 mean)', tol: '|diff| < 1e-4', pass: Math.abs(r.maps.dE[i] - d) < 1e-4 && r.maps.dE[i] < 3 };
+  });
+  test('Colorimetry', 'Colour-matrix calibration fixes a non-sRGB phone camera (leave-one-out ΔE00)', () => {
+    // 22-patch chart through a camera with a power-law tone curve, contrast boost and channel crosstalk
+    const R = makeRng(5), labs = [[96, 0, 0], [81, 0, 0], [66, 0, 0], [51, 0, 0], [36, 0, 0], [21, 0, 0], [38, 13, 14], [66, 18, 18], [50, -4, -22], [43, -13, 22], [55, 9, -25], [70, -33, 0], [62, 36, 57], [40, 10, -45], [51, 48, 17], [30, 22, -21], [72, -24, 58], [72, 19, 68], [29, 14, -50], [55, -38, 32], [42, 53, 28], [82, 4, 80], [51, 50, -15], [51, -28, -28]].filter((L) => labToLinear(...L).every((v) => v >= 0 && v <= 1));
+    const Mx = [0.86, 0.12, 0.02, 0.06, 0.84, 0.10, 0.02, 0.14, 0.84], cast = [1.12, 1.0, 0.78];
+    const tone = (v) => { const s = Math.pow(clamp(v, 0, 1), 1 / 2.4); return s - 0.05 * Math.sin(TAU * s); };
+    const P = 40, G = 4, cols = 6, W = cols * (P + G) + G, H = Math.ceil(labs.length / cols) * (P + G) + G, data = new Uint8ClampedArray(W * H * 4).fill(60);
+    const patches = labs.map((L, n) => ({ name: 'P' + n, lab: { L: L[0], a: L[1], b: L[2] }, rect: { x: G + (n % cols) * (P + G), y: G + Math.floor(n / cols) * (P + G), w: P, h: P } }));
+    patches.forEach((p, n) => { const c = mat3v(Mx, labToLinear(...labs[n])).map((v, k) => tone(v * cast[k] * 0.85) * 255); for (let y = p.rect.y; y < p.rect.y + P; y++) for (let x = p.rect.x; x < p.rect.x + P; x++) for (let k = 0; k < 3; k++) data[4 * (y * W + x) + k] = c[k] + R.normal() * 0.6; });
+    for (let i = 3; i < data.length; i += 4) data[i] = 255;
+    const img = { width: W, height: H, data }, base = { whiteRect: patches[0].rect, whiteLab: patches[0].lab, maskMode: 'all', refMode: 'median', patches: patches.slice(1) };
+    const mean = (r) => r.patches.reduce((s, p) => s + p.dE00, 0) / r.patches.length;
+    const white = analyzeColor(img, base), matrix = analyzeColor(img, { ...base, calibration: 'matrix' });
+    const mw = mean(white), mm = mean(matrix), worst = Math.max(...matrix.patches.map((p) => p.dE00));
+    return { measured: `white tile only ${f3(mw, 2)}, matrix ${f3(mm, 2)} (worst ${f3(worst, 2)})`, expected: 'matrix ≪ white tile', tol: 'matrix mean < 1, white > 2', pass: mm < 1 && mw > 2 && matrix.calib.toneCurve };
   });
 
   /* ---------------- Pipeline 2: microstructure ---------------- */
@@ -2733,6 +2868,14 @@ function buildTests() {
       for (let i = 0; i < a.length; i++) if (dom[i]) maxe = Math.max(maxe, Math.abs(a[i] - J[i]));
     }
     return { measured: `max |error| ${maxe}`, expected: '0', tol: 'exact', pass: maxe === 0 };
+  });
+  test('Microstructure', 'h-maxima merge equal hills whose dip is less than h; a rod stays one object', () => {
+    const rows = ['...........', '.###...###.', '.#########.', '.###...###.', '...........'];
+    const m = Uint8Array.from(rows.join(''), (c) => (c === '#' ? 1 : 0)), D = distanceTransform(m, 11, 5);
+    const a = hMaximaMarkers(D, m, 11, 5, 0.5).count, b = hMaximaMarkers(D, m, 11, 5, 1.5).count;
+    const rod = rasterize(40, 15, (x, y) => Math.min(Math.hypot(x - 12, y - 7) - 5.2, Math.hypot(x - 27, y - 7) - 5.2, Math.max(Math.abs(x - 19.5) - 7.5, Math.abs(y - 7) - 4.6)));
+    const c = hMaximaMarkers(distanceTransform(rod, 40, 15), rod, 40, 15, 1).count;
+    return { measured: `dip 1, h 0.5 → ${a}; h 1.5 → ${b}; rod → ${c}`, expected: '2, 1, 1', tol: 'exact', pass: a === 2 && b === 1 && c === 1 };
   });
   test('Microstructure', 'h-maxima keep peaks with dynamic ≥ h and drop shallower ones', () => {
     const w = 120, h = 1, f = new Float32Array(w), dom = new Uint8Array(w).fill(1);
@@ -2831,8 +2974,23 @@ function buildTests() {
     return { measured: `${r.counts.ok} (${e.toFixed(1)}%)`, expected: String(g.truth.count), tol: '±5%', pass: Math.abs(e) <= 5 };
   });
   test('Microstructure', 'Emulsion end-to-end: Sauter d32 and Dv50', () => {
-    const { g, r } = emulsion(); const e1 = pctErr(r.stats.d32, g.truth.stats.d32), e2 = pctErr(r.stats.D50, g.truth.stats.D50);
-    return { measured: `${f3(r.stats.d32, 2)} µm (${e1.toFixed(1)}%), ${f3(r.stats.D50, 2)} µm (${e2.toFixed(1)}%)`, expected: `${f3(g.truth.stats.d32, 2)}, ${f3(g.truth.stats.D50, 2)} µm`, tol: '±4%, ±5%', pass: Math.abs(e1) <= 4 && Math.abs(e2) <= 5 };
+    const { g, r } = emulsion(); const e1 = pctErr(r.stats.d32, g.truth.statsAll.d32), e2 = pctErr(r.stats.D50, g.truth.statsAll.D50);
+    return { measured: `${f3(r.stats.d32, 2)} µm (${e1.toFixed(1)}%), ${f3(r.stats.D50, 2)} µm (${e2.toFixed(1)}%)`, expected: `${f3(g.truth.statsAll.d32, 2)}, ${f3(g.truth.statsAll.D50, 2)} µm (all droplets)`, tol: '±4%, ±5%', pass: Math.abs(e1) <= 4 && Math.abs(e2) <= 5 };
+  });
+  test('Microstructure', 'Edge-exclusion bias removed by Miles–Lantuéjoul weights (large particles)', () => {
+    const pop = [], raw = [], cor = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const R = makeRng(seed), w = 400, h = 300, all = [], obs = [], wt = [];
+      for (let k = 0; k < 3000; k++) {
+        const d = R.logNormal(Math.log(50), 0.5), r = d / 2, cx = R.range(-200, w + 200), cy = R.range(-200, h + 200);
+        if (cx >= 0 && cy >= 0 && cx < w && cy < h) all.push(d);
+        const x0 = Math.ceil(cx - r), x1 = Math.floor(cx + r), y0 = Math.ceil(cy - r), y1 = Math.floor(cy + r);
+        if (x0 >= 1 && y0 >= 1 && x1 <= w - 2 && y1 <= h - 2) { obs.push(d); wt.push(w * h / Math.max(1, (w - (x1 - x0 + 1) - 1) * (h - (y1 - y0 + 1) - 1))); }
+      }
+      pop.push(sizeStats(all, 'volume').D50); raw.push(sizeStats(obs, 'volume').D50); cor.push(sizeStats(obs, 'volume', wt).D50);
+    }
+    const m = (a) => a.reduce((s, v) => s + v, 0) / a.length, eR = pctErr(m(raw), m(pop)), eC = pctErr(m(cor), m(pop));
+    return { measured: `Dv50 bias: excluded ${eR.toFixed(1)}%, corrected ${eC.toFixed(1)}%`, expected: 'corrected ≈ 0', tol: '|corrected| < 6% (raw > 10%)', pass: Math.abs(eC) < 6 && Math.abs(eR) > 10 };
   });
   test('Microstructure', 'Emulsion end-to-end: dispersed-phase area fraction', () => {
     const { g, r } = emulsion(); const e = 100 * (r.areaFraction - g.truth.areaFraction);
@@ -2855,11 +3013,11 @@ function buildTests() {
     return { measured: `${f3(100 * r.areaFraction, 2)}%`, expected: `${f3(100 * g.truth.porosity, 2)}%`, tol: '±2.5 pp', pass: Math.abs(e) <= 2.5 };
   });
   // Angular particles touching along flat faces leave necks too wide for a distance-map
-  // watershed; across seeds the count runs 5–11 % low while d32 stays within ~4 %.
+  // watershed; across seeds the count runs 8–15 % low while d32 stays within ~4 %.
   test('Microstructure', 'Powder end-to-end: particle count and d32 (touching angular particles)', () => {
     const g = genPowder(3), r = analyzeParticles(g.image, g.defaults);
-    const e1 = pctErr(r.counts.ok, g.truth.count), e2 = pctErr(r.stats.d32, g.truth.stats.d32);
-    return { measured: `${r.counts.ok} (${e1.toFixed(1)}%), d32 ${f3(r.stats.d32, 1)} µm (${e2.toFixed(1)}%)`, expected: `${g.truth.count}, ${f3(g.truth.stats.d32, 1)} µm`, tol: '±12%, ±6%', pass: Math.abs(e1) <= 12 && Math.abs(e2) <= 6 };
+    const e1 = pctErr(r.counts.ok, g.truth.count), e2 = pctErr(r.stats.d32, g.truth.statsAll.d32);
+    return { measured: `${r.counts.ok} (${e1.toFixed(1)}%), d32 ${f3(r.stats.d32, 1)} µm (${e2.toFixed(1)}%)`, expected: `${g.truth.count}, ${f3(g.truth.statsAll.d32, 1)} µm`, tol: '±12%, ±6%', pass: Math.abs(e1) <= 12 && Math.abs(e2) <= 6 };
   });
 
   /* ---------------- Pipeline 3: shrinkage & morphology ---------------- */
@@ -3442,7 +3600,7 @@ const METRIC = {
 };
 const Color = {
   img: null, src: null, res: null, view: 'dE', cmap: 'inferno', alpha: 1, tool: 'probe', line: null, draft: null, ready: false,
-  opts: { whiteRect: null, whiteLab: { L: 96, a: -0.3, b: 1.8 }, normalize: true, refMode: 'custom', refLab: { L: 64, a: 9, b: 32 }, refRect: null, refPoint: null, formula: '2000', maskMode: 'auto', patches: [] },
+  opts: { whiteRect: null, whiteLab: { L: 96, a: -0.3, b: 1.8 }, normalize: true, calibration: 'white', refMode: 'custom', refLab: { L: 64, a: 9, b: 32 }, refRect: null, refPoint: null, formula: '2000', maskMode: 'auto', patches: [] },
   init() {
     this.viewer = new Viewer($('#c-viewer'), {
       onHover: (p) => this.readout(p), onLeave: () => this.readout(null),
@@ -3462,6 +3620,16 @@ const Color = {
     $('#c-refmode').addEventListener('change', (e) => { this.opts.refMode = e.target.value; this.syncRefUi(); rerun(); });
     $('#c-formula').addEventListener('change', (e) => { this.opts.formula = e.target.value; rerun(); });
     $('#c-mask').addEventListener('change', (e) => { this.opts.maskMode = e.target.value; rerun(); });
+    $('#c-calib').addEventListener('change', (e) => { this.opts.calibration = e.target.value; rerun(); });
+    $('#c-patch-list').addEventListener('input', (e) => {
+      const row = e.target.closest('[data-p]'); if (!row) return;
+      const p = this.opts.patches[+row.dataset.p], k = e.target.dataset.k;
+      if (p && k && Number.isFinite(+e.target.value)) { p.lab = { ...p.lab, [k]: +e.target.value }; rerun(); }
+    });
+    $('#c-patch-list').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-del]'); if (!b) return;
+      this.opts.patches.splice(+b.dataset.del, 1); this.patchList(); this.run();
+    });
     $('#c-generate').addEventListener('click', () => this.generate());
     wireDrop($('#c-drop'), $('#c-file'), (files) => this.loadFile(files[0]));
     const v = store.get('c-view', null); if (v && METRIC[v] || v === 'original' || v === 'calibrated') { this.view = v; $('#c-view').value = v; }
@@ -3475,7 +3643,7 @@ const Color = {
   },
   setTool(t) {
     this.tool = t; $$('#c-tools button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
-    this.viewer.setTool(t === 'white' || t === 'ref' ? 'rect' : t);
+    this.viewer.setTool(t === 'white' || t === 'ref' || t === 'patch' ? 'rect' : t);
   },
   async generate() {
     const seed = Math.max(1, Math.round(+$('#c-seed').value || 21));
@@ -3483,7 +3651,7 @@ const Color = {
     const g = await Engine.call('generate', { kind: 'browning', seed }, null, 'generating cookie');
     this.img = g.image; this.src = { kind: 'synthetic', meta: g.meta, truth: g.truth, seed };
     const d = g.defaults;
-    Object.assign(this.opts, { whiteRect: d.whiteRect, whiteLab: d.whiteLab, normalize: true, refMode: d.refMode, refLab: d.refLab, refRect: null, refPoint: null, formula: d.formula, maskMode: d.maskMode, patches: g.truth.patches });
+    Object.assign(this.opts, { whiteRect: d.whiteRect, whiteLab: d.whiteLab, normalize: true, refMode: d.refMode, refLab: d.refLab, refRect: null, refPoint: null, formula: d.formula, maskMode: d.maskMode, patches: g.truth.patches.map((p) => ({ ...p, rect: { ...p.rect }, lab: { ...p.lab } })) });
     this.line = { x0: 120, y0: 280, x1: 505, y1: 280 };
     this.syncControls();
     $('#c-src-note').innerHTML = `<b>Synthetic scene</b> · ${g.image.width}×${g.image.height} px · cast R×${g.truth.cast[0]} G×${g.truth.cast[1]} B×${g.truth.cast[2]}, exposure ${g.truth.exposure}. Six patches with known L*a*b* check the calibration.`;
@@ -3494,7 +3662,7 @@ const Color = {
       $('#c-busy').hidden = false;
       const r = await readImageFile(file, 1600);
       this.img = r.image; this.src = { kind: 'file', name: r.name };
-      Object.assign(this.opts, { whiteRect: null, refMode: 'median', refRect: null, refPoint: null, patches: [], maskMode: 'auto' });
+      Object.assign(this.opts, { whiteRect: null, refMode: 'median', refRect: null, refPoint: null, patches: [], maskMode: 'auto', calibration: 'white' });
       this.line = null;
       this.syncControls();
       $('#c-src-note').innerHTML = `<b>${esc(r.name)}</b> · ${r.image.width}×${r.image.height} px${r.factor > 1 ? ` (downscaled from ${r.origW}×${r.origH})` : ''}. Draw a White ROI on a white reference to calibrate.`;
@@ -3506,13 +3674,21 @@ const Color = {
     const o = this.opts;
     $('#c-normalize').checked = o.normalize; $('#c-wL').value = o.whiteLab.L; $('#c-wa').value = o.whiteLab.a; $('#c-wb').value = o.whiteLab.b;
     $('#c-refmode').value = o.refMode; $('#c-rL').value = o.refLab.L; $('#c-ra').value = o.refLab.a; $('#c-rb').value = o.refLab.b;
-    $('#c-formula').value = o.formula; $('#c-mask').value = o.maskMode; this.syncRefUi();
+    $('#c-formula').value = o.formula; $('#c-mask').value = o.maskMode; $('#c-calib').value = o.calibration || 'white'; this.syncRefUi(); this.patchList();
+  },
+  patchList() {
+    $('#c-patch-list').innerHTML = this.opts.patches.map((p, i) => `<div class="patch-row" data-p="${i}"><span title="${esc(p.name)}">${esc(p.name)}</span>${['L', 'a', 'b'].map((k) => `<input type="number" step="0.1" data-k="${k}" value="${p.lab[k]}" aria-label="${esc(p.name)} ${k}*">`).join('')}<button type="button" data-del="${i}" aria-label="Remove ${esc(p.name)}">✕</button></div>`).join('') || '<p class="hint">No patches yet.</p>';
   },
   drawn(d, tool) {
     if (this.tool === 'line') { this.line = d; this.overlay(); this.profile(); return; }
     const r = { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0) };
     if (this.tool === 'white') { this.opts.whiteRect = r; this.opts.normalize = true; $('#c-normalize').checked = true; }
     if (this.tool === 'ref') { this.opts.refRect = r; this.opts.refMode = 'roi'; $('#c-refmode').value = 'roi'; this.syncRefUi(); }
+    if (this.tool === 'patch') {
+      let n = this.opts.patches.length + 1; while (this.opts.patches.some((p) => p.name === 'Patch ' + n)) n++;
+      this.opts.patches.push({ name: 'Patch ' + n, rect: r, lab: { L: 50, a: 0, b: 0 } }); this.patchList();
+      toast(`Patch ${n} added: type its certified L*a*b* in the calibration panel`);
+    }
     this.run();
     void tool;
   },
@@ -3573,7 +3749,7 @@ const Color = {
       g.lineWidth = lw; g.strokeStyle = color; g.strokeRect(r.x, r.y, r.w, r.h);
       if (label) { g.font = `600 ${fs}px ${tok('--font-ui')}`; const tw = g.measureText(label).width; g.fillStyle = 'rgba(0,0,0,0.65)'; g.fillRect(r.x, r.y - fs * 1.5, tw + fs * 0.9, fs * 1.5); g.fillStyle = color; g.textBaseline = 'middle'; g.fillText(label, r.x + fs * 0.45, r.y - fs * 0.75); }
     };
-    if (this.res && this.view !== 'original') for (const p of this.res.patches) { g.lineWidth = v.px(1); g.strokeStyle = 'rgba(255,255,255,0.55)'; g.strokeRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h); }
+    for (const p of this.opts.patches) { g.lineWidth = v.px(1.2); g.strokeStyle = 'rgba(255,255,255,0.65)'; g.strokeRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h); }
     box(this.opts.whiteRect, '#ffffff', 'WHITE');
     if (this.opts.refMode === 'roi') box(this.opts.refRect, rgbCss(OK_C), 'REF');
     if (this.opts.refMode === 'pixel' && this.opts.refPoint) {
@@ -3590,7 +3766,7 @@ const Color = {
     }
     if (this.draft && this.draft.tool !== 'line') {
       const d = this.draft, r = { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0) };
-      box(r, this.tool === 'white' ? '#ffffff' : rgbCss(OK_C), this.tool === 'white' ? 'WHITE' : 'REF');
+      box(r, this.tool === 'ref' ? rgbCss(OK_C) : '#ffffff', this.tool === 'white' ? 'WHITE' : this.tool === 'patch' ? 'PATCH' : 'REF');
     }
   },
   readout(p) {
@@ -3636,6 +3812,8 @@ const Color = {
       const wl = r.white.measuredLab, g = r.white.gains;
       $('#c-white-info').innerHTML = `Tile measured L*a*b* <strong>${fx(wl[0], 1)} ${fx(wl[1], 1)} ${fx(wl[2], 1)}</strong>; channel gains <strong>${g.map((v) => v.toFixed(3)).join(' · ')}</strong>${this.opts.normalize ? '' : ' (not applied)'}${r.white.clippedFraction > 0.01 ? ` · <span style="color:var(--bad-text)">${(100 * r.white.clippedFraction).toFixed(0)}% clipped pixels in the ROI</span>` : ''}.`;
     } else $('#c-white-info').innerHTML = 'No white ROI yet. Draw one on the white tile with the <strong>White ROI</strong> tool.';
+    const cb = r.calib;
+    $('#c-calib-info').innerHTML = cb.mode === 'matrix' ? `Matrix fitted to <strong>${cb.references}</strong> references; tone curve ${cb.toneCurve ? `from <strong>${cb.greys}</strong> grey patches` : '= sRGB (add 3 or more grey patches to fit the camera\'s own curve)'}. The calibration table shows leave-one-out errors.` : (cb.note ? esc(cb.note) : 'Add patches of a colour chart with the <strong>Patch</strong> tool, then type each patch\'s certified values. The matrix needs 4 or more references (the white tile counts); 3 or more grey patches also fix the camera\'s tone curve.');
     $('#c-ref-info').innerHTML = `Reference L*a*b* <strong>${fx(r.ref.L, 2)} ${fx(r.ref.a, 2)} ${fx(r.ref.b, 2)}</strong> (${{ custom: 'typed', median: 'sample median', roi: 'ROI mean', pixel: '5 × 5 picked' }[r.ref.mode] || r.ref.mode}).`;
     $('#c-mask-info').textContent = r.maskInfo.fallback ? 'The automatic mask found nothing, so the whole image is used.' : r.maskInfo.background ? `Background L*a*b* ${r.maskInfo.background.map((v) => v.toFixed(1)).join(' ')}; Otsu cut at ΔE*ab ${fx(r.maskInfo.threshold, 1)}.` : 'Every pixel outside the white ROI is analysed.';
     // classes
@@ -3670,11 +3848,11 @@ const Color = {
     // patches
     const pt = $('#c-patches');
     if (r.patches.length) {
-      pt.innerHTML = `<thead><tr><th class="l">Patch</th><th>Nominal L* a* b*</th><th>Measured L* a* b*</th><th>ΔE00</th><th>Uncorrected</th></tr></thead><tbody>${r.patches.map((p) => `<tr><td class="l" style="font-family:var(--font-ui)"><span class="sw" style="display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:rgb(${F.labToRgb8(p.nominal.L, p.nominal.a, p.nominal.b).join(',')})"></span>${esc(p.name)}</td><td>${fx(p.nominal.L, 1)} ${fx(p.nominal.a, 1)} ${fx(p.nominal.b, 1)}</td><td>${fx(p.measured.L, 1)} ${fx(p.measured.a, 1)} ${fx(p.measured.b, 1)}</td><td>${dePill(p.dE00)}</td><td>${fx(p.dE00raw, 2)}</td></tr>`).join('')}</tbody>`;
+      pt.innerHTML = `<thead><tr><th class="l">Patch</th><th>Nominal L* a* b*</th><th>Measured L* a* b*</th><th>ΔE00${r.patches[0].loo ? ' (left out)' : ''}</th><th>Uncorrected</th></tr></thead><tbody>${r.patches.map((p) => `<tr><td class="l" style="font-family:var(--font-ui)"><span class="sw" style="display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:rgb(${F.labToRgb8(p.nominal.L, p.nominal.a, p.nominal.b).join(',')})"></span>${esc(p.name)}</td><td>${fx(p.nominal.L, 1)} ${fx(p.nominal.a, 1)} ${fx(p.nominal.b, 1)}</td><td>${fx(p.measured.L, 1)} ${fx(p.measured.a, 1)} ${fx(p.measured.b, 1)}</td><td>${dePill(p.dE00)}</td><td>${fx(p.dE00raw, 2)}</td></tr>`).join('')}</tbody>`;
       const mx = Math.max(...r.patches.map((p) => p.dE00)), mraw = Math.max(...r.patches.map((p) => p.dE00raw));
-      $('#c-patch-note').textContent = `Largest patch error ${mx.toFixed(2)} ΔE00 after calibration, ${mraw.toFixed(2)} before. Under 1 is visually indistinguishable.`;
+      $('#c-patch-note').textContent = `Largest patch error ${mx.toFixed(2)} ΔE00 after calibration${r.patches[0].loo ? ' (each patch predicted by a matrix fitted without it)' : ''}, ${mraw.toFixed(2)} before. Under 1 is visually indistinguishable.`;
     } else {
-      pt.innerHTML = '<tbody><tr><td class="wrap l" style="color:var(--muted)">This image has no reference patches with known L*a*b*. The synthetic scene includes six; for photos, image a colour chart next to the sample.</td></tr></tbody>';
+      pt.innerHTML = '<tbody><tr><td class="wrap l" style="color:var(--muted)">No reference patches yet. Photograph a colour chart next to the sample, mark its patches with the Patch tool and type their certified L*a*b*.</td></tr></tbody>';
       $('#c-patch-note').textContent = '';
     }
     void mean;
@@ -3708,7 +3886,8 @@ const MCOLS = [
   { key: 'minor', label: 'Minor axis', unit: 'µm', get: (p) => p.minor, f: (v) => fx(v, 2) },
   { key: 'orientation', label: 'Angle', unit: '°', get: (p) => p.orientation, f: (v) => fx(v, 1) },
   { key: 'cx', label: 'x', unit: 'px', get: (p) => p.cx, f: (v) => fx(v, 1) },
-  { key: 'cy', label: 'y', unit: 'px', get: (p) => p.cy, f: (v) => fx(v, 1) }
+  { key: 'cy', label: 'y', unit: 'px', get: (p) => p.cy, f: (v) => fx(v, 1) },
+  { key: 'edgeWeight', label: 'Edge weight', get: (p) => p.edgeWeight, f: (v) => fx(v, 3) }
 ];
 const Micro = {
   img: null, src: null, res: null, stage: 'overlay', sel: null, hov: null, sort: { key: 'ecd', dir: -1 }, showEx: false, factor: 1, ready: false,
@@ -3795,7 +3974,8 @@ const Micro = {
   },
   restat() {
     if (!this.res) return;
-    this.res.stats = F.sizeStats(this.res.particles.filter((p) => p.status === 'ok').map((p) => p.ecd), this.opts.weighting);
+    const ok = this.res.particles.filter((p) => p.status === 'ok');
+    this.res.stats = F.sizeStats(ok.map((p) => p.ecd), this.opts.weighting, this.opts.excludeBorder ? ok.map((p) => p.edgeWeight) : null);
     this.results();
   },
   paint() {
@@ -3911,7 +4091,7 @@ const Micro = {
     const r = this.res, s = r.stats, meta = this.src && this.src.meta, w = this.opts.weighting;
     const pre = w === 'number' ? 'Dn' : w === 'area' ? 'Da' : 'Dv', on = meta ? meta.objectName.toLowerCase() : 'object';
     $('#m-sum-title').textContent = meta ? `${meta.objectName} size distribution` : 'Size distribution';
-    $('#m-sum-cap').textContent = `${w} basis · ${fint(r.counts.ok)} ${on}s`;
+    $('#m-sum-cap').textContent = `${w} basis · ${fint(r.counts.ok)} ${on}s${s && s.edgeCorrected ? ' · edge-corrected' : ''}`;
     const afLabel = meta ? meta.fractionShort || meta.fractionLabel : 'Area fraction';
     if (!s) {
       $('#m-tiles').innerHTML = tile('Objects counted', fint(r.counts.ok), '', `${fint(r.counts.total)} detected`) + tile(afLabel, fx(100 * r.areaFraction, 2), '%');
@@ -3968,7 +4148,8 @@ const Micro = {
     const err = (m, g) => (Number.isFinite(m) && Number.isFinite(g) && g ? `${(100 * (m - g) / g >= 0 ? '+' : '')}${(100 * (m - g) / g).toFixed(1)}%` : '—');
     if (t.porosity != null) rows.push(['Porosity', `${fx(100 * r.areaFraction, 2)}%`, `${fx(100 * t.porosity, 2)}%`, `${(100 * (r.areaFraction - t.porosity)).toFixed(2)} pp`]);
     if (t.count != null) {
-      const ts = F.sizeStats(t.diameters, this.opts.weighting), s = r.stats, pre = this.opts.weighting === 'number' ? 'Dn' : this.opts.weighting === 'area' ? 'Da' : 'Dv';
+      // Size truth = every object whose centre is in the frame (what edge-corrected statistics estimate).
+      const ts = F.sizeStats(t.diametersAll || t.diameters, this.opts.weighting), s = r.stats, pre = this.opts.weighting === 'number' ? 'Dn' : this.opts.weighting === 'area' ? 'Da' : 'Dv';
       rows.push(['Count (inside frame)', fint(r.counts.ok), fint(t.count), err(r.counts.ok, t.count)]);
       rows.push(['Area fraction', `${fx(100 * r.areaFraction, 2)}%`, `${fx(100 * t.areaFraction, 2)}%`, `${(100 * (r.areaFraction - t.areaFraction)).toFixed(2)} pp`]);
       if (s && ts) {

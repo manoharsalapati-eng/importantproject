@@ -102,6 +102,18 @@ try {
     await page.selectOption('#c-mask', 'all'); await changed(page, 'Color', '__c5');
     r = await page.evaluate(() => ({ f: window.FoodVisionLab.Color.res.formula, m: window.FoodVisionLab.Color.res.maskArea }));
     check(r.f === '76' && r.m > 400000, 'CIE76 formula and whole-image mask apply', `${r.f}, ${r.m} px`);
+    await mark(page, 'Color', '__c7');
+    await page.selectOption('#c-calib', 'matrix'); await changed(page, 'Color', '__c7');
+    r = await page.evaluate(() => { const c = window.FoodVisionLab.Color.res; return { mode: c.calib.mode, refs: c.calib.references, loo: c.patches.every((p) => p.loo), head: document.querySelector('#c-patches').textContent }; });
+    check(r.mode === 'matrix' && r.refs === 7 && r.loo && /left out/.test(r.head), 'colour-matrix mode fits 7 references and reports leave-one-out errors', JSON.stringify({ mode: r.mode, refs: r.refs }));
+    await mark(page, 'Color', '__c8');
+    await page.click('#c-tools button[data-tool="patch"]');
+    await drag(page, '#c-viewer', 20, 470, 60, 520);
+    await page.waitForFunction(() => window.FoodVisionLab.Color.opts.patches.length === 7);
+    await page.fill('#c-patch-list [data-p="6"] input[data-k="L"]', '13');
+    await changed(page, 'Color', '__c8');
+    r = await page.evaluate(() => window.FoodVisionLab.Color.res.calib.references);
+    check(r === 8, 'Patch tool adds an editable reference patch', `${r} references`);
     await page.screenshot({ path: path.join(shots, '02-colorimeter-tools.png'), fullPage: false });
     // Upload a photo: export the synthetic scene as PNG and load it through the file input
     const png = await page.evaluate(() => { const L = window.FoodVisionLab.Color; const c = document.createElement('canvas'); c.width = L.img.width; c.height = L.img.height; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(L.img.data), c.width, c.height), 0, 0); return c.toDataURL('image/png').split(',')[1]; });
@@ -118,7 +130,7 @@ try {
   {
     const { ctx, page, errors } = await open(browser, { hash: '#micro' });
     await settle(page, 'Micro');
-    let r = await page.evaluate(() => { const M = window.FoodVisionLab.Micro; return { ok: M.res.counts.ok, gt: M.src.truth.count, d32: M.res.stats.d32, gd32: M.src.truth.stats.d32, af: M.res.areaFraction, gaf: M.src.truth.areaFraction }; });
+    let r = await page.evaluate(() => { const M = window.FoodVisionLab.Micro; return { ok: M.res.counts.ok, gt: M.src.truth.count, d32: M.res.stats.d32, gd32: M.src.truth.statsAll.d32, af: M.res.areaFraction, gaf: M.src.truth.areaFraction }; });
     check(rel(r.ok, r.gt) <= 0.05, 'emulsion droplet count within 5% of ground truth', `${r.ok} vs ${r.gt}`);
     check(rel(r.d32, r.gd32) <= 0.04, 'emulsion Sauter d32 within 4%', `${r.d32.toFixed(2)} vs ${r.gd32.toFixed(2)} µm`);
     check(Math.abs(r.af - r.gaf) <= 0.015, 'dispersed-phase area fraction within 1.5 pp', `${(100 * r.af).toFixed(2)}% vs ${(100 * r.gaf).toFixed(2)}%`);
@@ -142,7 +154,7 @@ try {
     await page.click('#m-copy');
     await page.waitForSelector('#fvl-toast:not([hidden])', { timeout: 5000 });
     const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-    check(/^ID,Status,Area \(µm²\),ECD \(µm\)/.test(clip) && clip.split('\n').length > 400, 'Copy CSV puts the object table on the clipboard', `${clip.split('\n').length - 1} rows`);
+    check(/^ID,Status,Area \(µm²\),ECD \(µm\)/.test(clip) && /Edge weight/.test(clip.split('\n')[0]) && clip.split('\n').length > 400, 'Copy CSV puts the object table on the clipboard', `${clip.split('\n').length - 1} rows`);
     // watershed off -> merged droplets
     await mark(page, 'Micro', '__m1');
     await page.click('#m-ws'); await changed(page, 'Micro', '__m1');
@@ -162,7 +174,7 @@ try {
     await page.screenshot({ path: path.join(shots, '05-micro-crumb.png'), fullPage: false });
     await mark(page, 'Micro', '__m4');
     await page.selectOption('#m-preset', 'powder'); await changed(page, 'Micro', '__m4');
-    r = await page.evaluate(() => { const M = window.FoodVisionLab.Micro; return { ok: M.res.counts.ok, gt: M.src.truth.count, d32: M.res.stats.d32, gd32: M.src.truth.stats.d32 }; });
+    r = await page.evaluate(() => { const M = window.FoodVisionLab.Micro; return { ok: M.res.counts.ok, gt: M.src.truth.count, d32: M.res.stats.d32, gd32: M.src.truth.statsAll.d32 }; });
     check(rel(r.ok, r.gt) <= 0.12 && rel(r.d32, r.gd32) <= 0.06, 'powder count within 12% and d32 within 6%', `${r.ok} vs ${r.gt}; ${r.d32.toFixed(1)} vs ${r.gd32.toFixed(1)} µm`);
     // upload a micrograph
     await page.click('#m-stages button[data-stage="original"]');

@@ -13,21 +13,21 @@ How these notes were checked:
 
 ## 0. Map of the file
 
-The file is 4,256 lines. It has three `<script>` blocks.
+The file is 4,437 lines. It has three `<script>` blocks.
 
 | Lines | What lives there |
 |---|---|
 | 1–752 | Page layout (HTML) and styling (CSS). No maths. |
-| 753–2966 | **The core library `FVL`.** All the maths. It never touches the page, so it runs in the page, in a worker and in Node. |
-| 837–955 | Colour science: sRGB → linear → XYZ → L\*a\*b\*, ΔE, browning/whiteness indices |
-| 996–1452 | Image processing: grey, blur, Otsu, distance transform, morphology, labelling, watershed, box counting |
-| 1459–1747 | Measuring objects (area, perimeter, Feret…) and statistics (d32, D10/50/90, fits, kinetics) |
-| 1749–2097 | The three pipelines: `analyzeColor`, `analyzeParticles`, `analyzeTimeLapse` |
-| 2101–2475 | Synthetic test images (cookie, emulsion, crumb, powder, apple slice) |
-| 2476–2935 | The 51 self-tests |
-| 2937–2961 | `dispatch` (which job to run) and `transferables` (fast hand-over of results) |
-| 2967–2978 | **The worker script** (12 lines) |
-| 2979–4254 | **The user interface:** Engine (talks to the worker), Viewer (canvas), Chart, the four tabs |
+| 753–3124 | **The core library `FVL`.** All the maths. It never touches the page, so it runs in the page, in a worker and in Node. |
+| 849–970 | Colour science: sRGB → linear → XYZ → L\*a\*b\*, ΔE, browning/whiteness indices |
+| 1008–1491 | Image processing: grey, blur, Otsu, distance transform, morphology, labelling, watershed, box counting |
+| 1494–1792 | Measuring objects (area, perimeter, Feret…) and statistics (d32, D10/50/90, fits, kinetics) |
+| 1795–2216 | The three pipelines (plus colour-chart calibration helpers): `analyzeColor`, `analyzeParticles`, `analyzeTimeLapse` |
+| 2220–2595 | Synthetic test images (cookie, emulsion, crumb, powder, apple slice) |
+| 2597–3093 | The 54 self-tests |
+| 3095–3119 | `dispatch` (which job to run) and `transferables` (fast hand-over of results) |
+| 3125–3136 | **The worker script** (12 lines) |
+| 3137–4435 | **The user interface:** Engine (talks to the worker), Viewer (canvas), Chart, the four tabs |
 
 **Conventions used everywhere:**
 - `x` is the column and `y` is the row. Pixel (0,0) is the top-left.
@@ -105,9 +105,9 @@ All 27 linear values, from the code:
 | background (1,2) | 0.0048 | 0.0040 | 0.0030 |
 | background (2,2) | 0.0044 | 0.0037 | 0.0033 |
 
-**The code: lookup table and function,** `food-vision-lab.html` lines 837–846:
+**The code: lookup table and function,** `food-vision-lab.html` lines 852–861:
 ```js
-// food-vision-lab.html lines 837–846
+// food-vision-lab.html lines 852–861
 const S2L = new Float64Array(256);
 for (let i = 0; i < 256; i++) {
   const c = i / 255;
@@ -153,9 +153,9 @@ Blue is boosted by 87%: the warm light was very short of blue.
 
 **Step 3: apply them.** Golden pixel: linear (0.672443, 0.351533, 0.097587) × gains = **(0.663552, 0.404993, 0.182786)**. The tile itself becomes exactly (0.876183, 0.876183, 0.876183), which is neutral.
 
-**The code:** the white-balance block of `analyzeColor`, lines 1819–1834:
+**The code:** the white-balance block of `analyzeColor`, lines 1906–1921:
 ```js
-// food-vision-lab.html lines 1819–1834
+// food-vision-lab.html lines 1906–1921
   const whiteLab = o.whiteLab || { L: 96, a: -0.3, b: 1.8 };
   const whiteRect = clampRect(o.whiteRect, w, h);
   let gains = [1, 1, 1], white = null;
@@ -175,7 +175,7 @@ Blue is boosted by 87%: the warm light was very short of blue.
 ```
 
 - `whiteLab = o.whiteLab || {...}` takes the certificate you typed. If there is none, it uses 96 / −0.3 / 1.8.
-- `whiteRect = clampRect(o.whiteRect, w, h)` takes the rectangle you drew and trims it to the image. (`clampRect`, lines 1753–1758, also rounds to whole pixels.)
+- `whiteRect = clampRect(o.whiteRect, w, h)` takes the rectangle you drew and trims it to the image. (`clampRect`, lines 1798–1803, also rounds to whole pixels.)
 - `let gains = [1, 1, 1], white = null;`: with no rectangle, nothing changes.
 - The double `for` loop walks over every pixel inside the rectangle.
 - `const j = 4 * (y * w + x);` is the position of that pixel's red byte.
@@ -187,9 +187,9 @@ Blue is boosted by 87%: the warm light was very short of blue.
 - `white = {...}` stores everything for the information line in the UI.
 - `if (o.normalize !== false) gains = g;` means the gains are only used if the "Normalise" checkbox is on.
 
-**`labToXyz` and `labToLinear`** (lines 878–893), used in Step 1:
+**`labToXyz` and `labToLinear`** (lines 893–908), used in Step 1:
 ```js
-// food-vision-lab.html lines 878–893
+// food-vision-lab.html lines 893–908
 function labToXyz(L, a, b) {
   const fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
   const fx3 = fx * fx * fx, fz3 = fz * fz * fz;
@@ -213,7 +213,45 @@ function labToLinear(L, a, b) {
 - `xr = fx3 > LAB_E ? fx3 : (116*fx - 16)/LAB_K;` uses the straight-line branch for very dark colours (the reverse of the toe in 1.3).
 - `yr` is the same idea, but the test is written with L directly (L > 8 means the cube branch).
 - `return [xr*WHITE.X, yr*WHITE.Y, zr*WHITE.Z];` turns the ratios back into absolute XYZ.
-- `labToLinear` multiplies XYZ by `M_XYZ2RGB`, the exact inverse of the RGB → XYZ matrix. That inverse is computed by `inv3` at lines 851–858 using the cofactor formula you learned for 3×3 matrices.
+- `labToLinear` multiplies XYZ by `M_XYZ2RGB`, the exact inverse of the RGB → XYZ matrix. That inverse is computed by `inv3` at lines 866–873 using the cofactor formula you learned for 3×3 matrices.
+
+**Colour-chart mode (the "Correction" menu).** A white tile can only fix one multiplier per channel. With a colour chart in the photo, the app can do better. You mark patches with the **Patch** tool and type their certified L\*a\*b\*. The app then:
+1. fits the camera's real tone curve per channel from the grey patches (3 or more needed), replacing the sRGB curve;
+2. fits a full 3×3 matrix by least squares, mapping camera colours to the certified ones;
+3. reports each patch's error from a matrix fitted *without* that patch (leave-one-out), so the check is honest.
+
+Lines 1922–1943:
+```js
+// food-vision-lab.html lines 1922–1943
+  // Default: sRGB curve + diagonal white-tile gains. Matrix mode: tone curve from grey patches
+  // (if ≥ 3 greys incl. the tile) and a least-squares 3×3 matrix fitted to every reference patch.
+  let luts = [S2L, S2L, S2L], CM = [gains[0], 0, 0, 0, gains[1], 0, 0, 0, gains[2]], calib = { mode: 'white' };
+  const refs = (o.patches || []).map((p) => ({ name: p.name, rect: p.rect, lab: p.lab }));
+  if (whiteRect) refs.push({ name: 'White tile', rect: whiteRect, lab: whiteLab, tile: true });
+  if (o.calibration === 'matrix') {
+    if (refs.length < 4) calib = { mode: 'white', note: 'Matrix calibration needs at least 4 reference patches (the white tile counts); using white-tile gains.' };
+    else {
+      for (const r of refs) { r.code = patchMeans(data, w, h, r.rect); r.target = labToLinear(r.lab.L, r.lab.a, r.lab.b); }
+      const greys = refs.filter((r) => Math.abs(r.lab.a) < 2 && Math.abs(r.lab.b) < 3).map((r) => ({ code: r.code, Y: labToXyz(r.lab.L, 0, 0)[1] }));
+      if (greys.length >= 3) luts = toneLut(greys);
+      const camOf = (r) => [luts[0][Math.round(r.code[0])], luts[1][Math.round(r.code[1])], luts[2][Math.round(r.code[2])]];
+      CM = fitColorMatrix(refs.map(camOf), refs.map((r) => r.target));
+      // Honest check: each patch predicted by a matrix fitted without it (leave-one-out).
+      const loo = refs.map((r, n) => {
+        const others = refs.filter((_, m) => m !== n), M = fitColorMatrix(others.map(camOf), others.map((q) => q.target));
+        const lab = linearToLab(...mat3v(M, camOf(r)));
+        return deltaE2000(lab[0], lab[1], lab[2], r.lab.L, r.lab.a, r.lab.b);
+      });
+      calib = { mode: 'matrix', matrix: CM, toneCurve: greys.length >= 3, greys: greys.length, references: refs.length, loo: refs.map((r, n) => ({ name: r.name, dE00: loo[n] })) };
+    }
+  }
+```
+
+- `refs` = your patches plus the white tile. Fewer than 4 means falling back to white-tile gains, with a note.
+- `patchMeans` averages the 8-bit codes inside each patch (15% inset to avoid edges). `target` is the certified colour in linear RGB.
+- `greys` are patches with a\* and b\* near 0. `toneLut` builds three 256-entry tables by interpolating ln(linear) against ln(code) through them.
+- `fitColorMatrix` solves the normal equations (XᵀX)m = Xᵀy for each output channel. This is ordinary least squares, the same maths as fitting a straight line, but with 3 inputs.
+- `loo` refits the matrix once per patch with that patch left out, and measures ΔE00 on it.
 
 ## 1.3 (c) Linear RGB → CIE XYZ → CIE L\*a\*b\*
 
@@ -257,13 +295,13 @@ All nine pixels after white balance:
 | background (1,2) | 4.272 | 0.547 | −1.284 |
 | background (2,2) | 3.977 | 1.015 | −2.505 |
 
-**The code: constants and conversion,** lines 849, 859–873:
+**The code: constants and conversion,** lines 864 and 874–888:
 ```js
-// food-vision-lab.html lines 849–849
+// food-vision-lab.html lines 864–864
 const M_RGB2XYZ = [0.4124564, 0.3575761, 0.1804375, 0.2126729, 0.7151522, 0.0721750, 0.0193339, 0.1191920, 0.9503041];
 ```
 ```js
-// food-vision-lab.html lines 859–873
+// food-vision-lab.html lines 874–888
 const WHITE = { X: 0.95047, Y: 1.0, Z: 1.08883 };
 const LAB_E = 216 / 24389, LAB_K = 24389 / 27;
 FVL.WHITE_D65 = WHITE;
@@ -291,19 +329,22 @@ function linearToLab(r, g, b, out) {
   - `out = out || [0, 0, 0];` reuses an array you pass in, instead of creating a new one per pixel. With a million pixels this avoids a lot of garbage-collection work.
   - The last line writes L\*, a\*, b\*.
 
-**Where this runs for every pixel:** `analyzeColor` lines 1843–1848:
+**Where this runs for every pixel:** `analyzeColor` lines 1952–1958:
 ```js
-// food-vision-lab.html lines 1843–1848
+// food-vision-lab.html lines 1951–1958
+  const [l0, l1, l2] = luts;
   for (let i = 0, j = 0; i < N; i++, j += 4) {
-    const r = S2L[data[j]] * g0, g = S2L[data[j + 1]] * g1, b = S2L[data[j + 2]] * g2;
+    const r0 = l0[data[j]], g0 = l1[data[j + 1]], b0 = l2[data[j + 2]];
+    const r = CM[0] * r0 + CM[1] * g0 + CM[2] * b0, g = CM[3] * r0 + CM[4] * g0 + CM[5] * b0, b = CM[6] * r0 + CM[7] * g0 + CM[8] * b0;
     linearToLab(r, g, b, lab);
     L[i] = lab[0]; A[i] = lab[1]; B[i] = lab[2];
     cal[j] = enc[r >= 1 ? 4096 : (r * 4096) | 0]; cal[j + 1] = enc[g >= 1 ? 4096 : (g * 4096) | 0]; cal[j + 2] = enc[b >= 1 ? 4096 : (b * 4096) | 0]; cal[j + 3] = 255;
   }
 ```
 
+- `luts` holds one 256-entry "code → linear" table per channel. Normally all three are `S2L`; in colour-chart mode they are the camera's own tone curve (see the end of 1.2).
 - `i` counts pixels and `j` counts bytes (4 per pixel), so `j += 4`.
-- `S2L[data[j]] * g0` is: linearise red, then apply the red gain.
+- `r0, g0, b0` are the linearised values. `CM` is a 3×3 matrix: in white-tile mode it is diagonal (gains on the diagonal, zeros elsewhere), so `r = gain_R × r0` exactly as in the hand calculation.
 - `linearToLab(r, g, b, lab)` fills the reused `lab` array, which is copied into three `Float32Array` maps `L`, `A`, `B`.
 - The `cal[...] = enc[...]` line builds the white-balanced picture you see on screen. `enc` is a 4097-entry table that turns linear back into 8-bit sRGB. `r >= 1 ? 4096` caps values that the gains pushed above 1 (shown as pure white).
 
@@ -352,16 +393,16 @@ All pixels against (64, 9, 32):
 | crust | 19.319 | 17.770 |
 | backgrounds | 68.9–69.7 | 52.8–53.3 |
 
-**The code,** lines 902–905 and 907–943:
+**The code,** lines 917–920 and 922–958:
 ```js
-// food-vision-lab.html lines 902–905
+// food-vision-lab.html lines 917–920
 function deltaE76(L1, a1, b1, L2, a2, b2) {
   const dL = L1 - L2, da = a1 - a2, db = b1 - b2;
   return Math.sqrt(dL * dL + da * da + db * db);
 }
 ```
 ```js
-// food-vision-lab.html lines 907–943
+// food-vision-lab.html lines 922–958
 const P25_7 = 6103515625; // 25^7
 function deltaE2000(L1, a1, b1, L2, a2, b2) {
   const C1 = Math.sqrt(a1 * a1 + b1 * b1), C2 = Math.sqrt(a2 * a2 + b2 * b2);
@@ -435,9 +476,9 @@ Other indices for golden:
 - hue h° = atan2(b, a) = **75.08°** (0° red, 90° yellow)
 - whiteness WI = 100 − √((100−L)² + a² + b²) = **56.44**
 
-**The code,** lines 945–954:
+**The code,** lines 960–969:
 ```js
-// food-vision-lab.html lines 945–954
+// food-vision-lab.html lines 960–969
 function browningIndex(L, a, b) {
   const den = 5.645 * L + a - 3.012 * b;
   if (L <= 0.5 || Math.abs(den) < 1e-6) return NaN;
@@ -456,7 +497,7 @@ function hueAngle(a, b) { let h = Math.atan2(b, a) * DEG; if (h < 0) h += 360; r
 
 ## 1.6 (d) Grey, Gaussian blur, Otsu, binary mask
 
-The particle pipeline (`analyzeParticles`, line 1971) starts again from the **raw** photo. It does not white-balance, because only brightness matters for finding objects. Read the same 9 pixels as a micrograph: some bright objects on a dark background.
+The particle pipeline (`analyzeParticles`, line 2083) starts again from the **raw** photo. It does not white-balance, because only brightness matters for finding objects. Read the same 9 pixels as a micrograph: some bright objects on a dark background.
 
 ### Grey (luma)
 grey = 0.2126·R + 0.7152·G + 0.0722·B, applied to the raw 0–255 values (not linear).
@@ -470,7 +511,7 @@ Tile: 0.2126×242 + 0.7152×226 + 0.0722×182 = 51.449 + 161.635 + 13.140 = **22
 | y=2 | 12.0682 | 13.2086 | 12.3530 |
 
 ```js
-// food-vision-lab.html lines 996–1001
+// food-vision-lab.html lines 1011–1016
 function grayscale(img) {
   const { width: w, height: h, data } = img;
   const out = new Float32Array(w * h);
@@ -525,7 +566,7 @@ Results from the code:
 | y=2 | 27.9030 | 22.1445 | 13.5553 |
 
 ```js
-// food-vision-lab.html lines 1003–1032
+// food-vision-lab.html lines 1018–1047
 function gaussianKernel(sigma) {
   const r = Math.max(1, Math.ceil(4 * sigma)); // ±4σ keeps truncation error < 0.01% of the variance
   const k = new Float64Array(2 * r + 1);
@@ -599,7 +640,7 @@ Two lessons:
 The quality score is η = σ_B² ÷ σ_T² = 4586.69 / 5367.43 = **0.8545**, shown in the app as "separability η". Near 1 means two clean groups; below about 0.7 the threshold is unreliable.
 
 ```js
-// food-vision-lab.html lines 1035–1066
+// food-vision-lab.html lines 1050–1081
 function histogram256(v, mask) {
   const hist = new Float64Array(256);
   for (let i = 0; i < v.length; i++) {
@@ -648,19 +689,21 @@ function otsuFromHist(hist) {
 
 **Making the mask** (`analyzeParticles`, lines 1977–1982):
 ```js
-// food-vision-lab.html lines 1977–1982
+// food-vision-lab.html lines 2089–2095
   const ot = otsu(blur);
   const thr = o.thresholdMode === 'manual' && Number.isFinite(+o.threshold) ? +o.threshold : ot.t;
-  let above = 0; for (let i = 0; i < N; i++) if (blur[i] > thr) above++;
+  // Compare rounded values: Otsu put grey g in class 0 when Math.round(g) <= t.
+  let above = 0; for (let i = 0; i < N; i++) if (Math.round(blur[i]) > thr) above++;
   const bright = o.polarity === 'bright' ? true : o.polarity === 'dark' ? false : above / N <= 0.5;
   const binary = new Uint8Array(N);
-  for (let i = 0; i < N; i++) binary[i] = bright ? (blur[i] > thr ? 1 : 0) : (blur[i] <= thr ? 1 : 0);
+  for (let i = 0; i < N; i++) binary[i] = (Math.round(blur[i]) > thr) === bright ? 1 : 0;
 ```
 
 - `thr` is the Otsu value, unless you chose "Manual".
+- `Math.round(blur[i]) > thr`: Otsu sorted pixels by their *rounded* value, so the mask compares rounded values too. (Comparing the raw value used to put a value such as 104.3 on the wrong side of t = 104.)
 - `above` counts pixels brighter than the threshold: 3 of 9 here.
 - `bright` handles "Objects are: Minority phase". Objects are whichever side is smaller: 3/9 = 33% ≤ 50%, so objects are bright.
-- `binary[i] = 1` for object pixels. Our mask: tile, pale dough, golden = 1; everything else 0.
+- `binary[i] = (... > thr) === bright ? 1 : 0` marks object pixels: bright pixels when objects are bright, dark ones otherwise. Our mask: tile, pale dough, golden = 1; everything else 0.
 
 ```
 1 1 0
@@ -702,7 +745,7 @@ The 1-D routine computes d[q] = min over p of ((q − p)² + f[p]). Each p contr
 - Result: d = [4, 1, 0]: the top pixel is 2 rows from the background (2² = 4).
 
 ```js
-// food-vision-lab.html lines 1069–1109
+// food-vision-lab.html lines 1084–1124
 /* Exact squared Euclidean distance transform (Felzenszwalb & Huttenlocher 2012).
    For every pixel with mask=1 returns squared distance to the nearest mask=0 pixel
    (0 for background). Pixels outside the image are ignored. */
@@ -754,7 +797,7 @@ function distanceTransform(mask, w, h) {
   - Row pass: `f[x] = out[row + x]`, the column results.
 - `distanceTransform` takes square roots. A value ≥ 0.5e20 means "no background anywhere", which is replaced by the image diagonal.
 
-**Bonus: erosion uses the same distances.** "Erode by a disk of radius r" keeps a pixel only if d² > r². With r = 1 only (0,0) survives (d² = 2 > 1). `erode` is lines 1113–1118, `dilate` does the opposite on the inverted mask, and opening = erode then dilate. The self-tests compare these against slow brute-force versions pixel for pixel.
+**Bonus: erosion uses the same distances.** "Erode by a disk of radius r" keeps a pixel only if d² > r². With r = 1 only (0,0) survives (d² = 2 > 1). `erode` is lines 1128–1133, `dilate` does the opposite on the inverted mask, and opening = erode then dilate. The self-tests compare these against slow brute-force versions pixel for pixel.
 
 ## 1.7 (d) Watershed: separating two touching droplets
 
@@ -823,22 +866,46 @@ Final labels:
 
 The middle neck pixel (5,2) went to droplet 1 only because droplet 1's neck pixel was queued first (age 18 vs 19). So ties favour markers found earlier in reading order. The effect is at most a pixel or so per contact.
 
-**What if h = 1.5?** Then h is bigger than the dip (1), and textbook h-maxima would merge the hills into one marker. **The shipped code still finds 2.** See audit B4: this is a real deviation in my code.
+**What if h = 1.5?** Then h is bigger than the dip (1). Lowering by 1.5 and reconstructing gives R = 0.5 on *every* pixel of both blobs: one flat plateau. So there is **one** marker and one object. h is "how deep a dip must be before two hills count as two objects". (The first version of the app used a shortcut that always split equal-height hills; see audit B4, now fixed.)
 
 **Code: `hMaximaMarkers` and `watershed`,** lines 1352–1385:
 ```js
-// food-vision-lab.html lines 1352–1385
-/* h-maxima markers of the distance map: regional maxima with dynamic >= h.
-   Returns { markers: Int32Array labels, count }. */
+// food-vision-lab.html lines 1367–1424
+/* Regional maxima of `img` inside `dom`: 8-connected plateaus of equal value
+   (within eps) with no higher neighbour. Returns { markers: Int32Array labels, count }. */
+function regionalMaxima(img, dom, w, h, eps = 1e-5) {
+  const N = w * h, lab = new Int32Array(N), q = new Int32Array(N);
+  let count = 0;
+  for (let s = 0; s < N; s++) {
+    if (!dom[s] || lab[s] !== 0) continue;
+    const v = img[s];
+    let head = 0, tail = 0, isMax = true;
+    q[tail++] = s; lab[s] = -1;                    // -1: in the plateau being flooded
+    while (head < tail) {
+      const i = q[head++], x = i % w, y = (i / w) | 0;
+      for (let k = 0; k < 8; k++) {
+        const xx = x + N8[k][0], yy = y + N8[k][1];
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const j = yy * w + xx;
+        if (!dom[j]) continue;
+        if (img[j] > v + eps) isMax = false;
+        else if (Math.abs(img[j] - v) <= eps && lab[j] === 0) { lab[j] = -1; q[tail++] = j; }
+      }
+    }
+    const id = isMax ? ++count : -2;                // -2: visited, not a maximum
+    for (let t = 0; t < tail; t++) lab[q[t]] = id;
+  }
+  for (let i = 0; i < N; i++) if (lab[i] < 0) lab[i] = 0;
+  return { markers: lab, count };
+}
+/* h-maxima markers of the distance map (textbook definition): the regional maxima of
+   R = reconstruction of (D − h) under D. A hill whose dip to an equal or higher hill is
+   less than h joins that hill's plateau of R and so shares its marker. */
 function hMaximaMarkers(dist, fg, w, h, hval) {
   const marker = new Float32Array(dist.length);
   for (let i = 0; i < marker.length; i++) marker[i] = dist[i] - hval;
   const R = reconstructByDilation(marker, dist, fg, w, h);
-  const top = new Uint8Array(dist.length);
-  const eps = 1e-4 * Math.max(1, hval);
-  for (let i = 0; i < top.length; i++) top[i] = fg[i] && dist[i] - R[i] >= hval - eps ? 1 : 0;
-  const { labels, count } = labelComponents(top, w, h, 8);
-  return { markers: labels, count };
+  return regionalMaxima(R, fg, w, h, 1e-5 * Math.max(1, hval));
 }
 /* Marker-controlled watershed (Meyer's priority flooding) of `relief`
    (lower floods first) restricted to `domain`. No watershed lines. */
@@ -864,22 +931,24 @@ function watershed(relief, markers, domain, w, h) {
 }
 ```
 
+- `regionalMaxima`: finds plateaus that no neighbour rises above.
+  - For each unvisited pixel `s`, it floods (with the queue `q`) every connected pixel with the same value (within `eps`), marking them −1.
+  - While flooding, any neighbour with a *higher* value sets `isMax = false`.
+  - If the plateau stays a maximum it gets the next number, otherwise −2 ("seen, not a maximum"). At the end, negative marks become 0.
 - `hMaximaMarkers`:
   - `marker[i] = dist[i] - hval` lowers everything by h.
-  - `reconstructByDilation(marker, dist, fg, w, h)` is the flowing step (lines 1302–1351). It does a forward raster pass, a backward pass, then a queue for the leftovers (Vincent's 1993 algorithm). The self-test checks it against the slow method "repeat until nothing changes", with exact equality.
-  - `eps = 1e-4 * Math.max(1, hval)` is a tiny tolerance, because `R` is a `Float32Array` (about 7 digits).
-  - `top[i] = fg[i] && dist[i] - R[i] >= hval - eps` is the marker test.
-  - `labelComponents(top, ...)` numbers the marker blobs 1, 2, 3…
+  - `reconstructByDilation(marker, dist, fg, w, h)` is the flowing step (lines 1317–1366). It does a forward raster pass, a backward pass, then a queue for the leftovers (Vincent's 1993 algorithm). The self-test checks it against the slow method "repeat until nothing changes", with exact equality.
+  - `regionalMaxima(R, ...)` turns every plateau of R that is a maximum into one numbered marker. The tolerance `1e-5 × max(1, h)` is needed because `R` is a `Float32Array` (about 7 digits).
 - `watershed`:
   - `labels = Int32Array.from(markers)` starts with the seeds.
   - `new Heap(1 << 16)` creates a priority queue with room for 65,536 entries; it doubles if needed.
   - The first loop pushes every seed pixel with priority `relief[i]` (= −D) and an increasing `age`.
   - `while (heap.n > 0)` runs until the queue is empty.
   - `heap.pop()` puts the smallest (priority, age) in `outIdx` / `outLab`.
-  - The `for (let k = 0; k < 8; k++)` loop visits the 8 neighbours (`N8` is a list of 8 [dx, dy] pairs, line 1299).
+  - The `for (let k = 0; k < 8; k++)` loop visits the 8 neighbours (`N8` is a list of 8 [dx, dy] pairs, line 1314).
   - `if (!domain[j] || labels[j]) continue;` skips background and already-labelled pixels.
   - `labels[j] = lab; heap.push(relief[j], age++, j, lab);` labels the pixel immediately and queues it. Because the label is given at push time, each pixel enters the queue exactly once.
-- `Heap` (lines 1243–1283): a binary min-heap stored in 4 typed arrays: priority `p`, age `a`, pixel index `i`, label `l`. `less` compares priority first and age second. `push` bubbles up and `pop` sinks down. This is the standard textbook heap, using arrays instead of objects for speed.
+- `Heap` (lines 1258–1298): a binary min-heap stored in 4 typed arrays: priority `p`, age `a`, pixel index `i`, label `l`. `less` compares priority first and age second. `push` bubbles up and `pop` sinks down. This is the standard textbook heap, using arrays instead of objects for speed.
 
 ## 1.8 Measuring the two droplets
 
@@ -907,7 +976,7 @@ Droplet 2's circularity came out above 1 and was capped. Objects this small are 
 d32 is the diameter of a sphere with the same volume-to-surface ratio as the whole population, which is what matters for emulsion stability and frying oil uptake.
 
 ```js
-// food-vision-lab.html lines 1535–1545
+// food-vision-lab.html lines 1574–1584
   for (let l = 1; l <= count; l++) {
     const A = area[l]; if (!A) continue;
     const x0 = minx[l], x1 = maxx[l], y0 = miny[l], y1 = maxy[l];
@@ -921,7 +990,7 @@ d32 is the diameter of a sphere with the same volume-to-surface ratio as the who
     }
 ```
 ```js
-// food-vision-lab.html lines 1568–1573
+// food-vision-lab.html lines 1607–1612
     const P = pms * PERIM_K;
     out.push({
       id: l, area: A, perimeter: P,
@@ -933,9 +1002,9 @@ d32 is the diameter of a sphere with the same volume-to-surface ratio as the who
 - The window loop starts at `x0 - 1` / `y0 - 1` so windows that just touch the object's edge are counted.
 - `const n = a + b + c + d;` adds true/false values, which JavaScript treats as 1/0.
 - `a === d` with n = 2 means the two inside corners are diagonal (a,d) or the other diagonal (b,c).
-- `PERIM_K` (line 1459) is the 0.948059 correction. `Math.min(1, ...)` caps circularity at 1.
+- `PERIM_K` (line 1498) is the 0.948059 correction. `Math.min(1, ...)` caps circularity at 1.
 
-In `sizeStats` (line 1703): `d32: S3 / S2` where `S3 = Σd³`, `S2 = Σd²`.
+In `sizeStats` (line 1748): `d32: S3 / S2` where `S3 = Σd³`, `S2 = Σd²`. When edge-cut objects are excluded, each sum is weighted by the object's edge weight (audit B6).
 
 **Careful with names:** lowercase `d10` in that object is the *mean diameter* (D[1,0]). Uppercase `D10` is the *10th percentile*. They are different things.
 
@@ -982,9 +1051,9 @@ JavaScript in a page runs on one **main thread**, which also draws the page and 
 
 A **WebWorker** is a second thread with no access to the page. It can only compute and exchange messages. The app does all the maths in a worker, so sliders and hovering stay smooth.
 
-**How the worker is created without a separate file** (Engine, lines 3019–3033):
+**How the worker is created without a separate file** (Engine, lines 3177–3191):
 ```js
-// food-vision-lab.html lines 3019–3033
+// food-vision-lab.html lines 3177–3191
   init() {
     try {
       const src = $('#fvl-core').textContent + '\n;\n' + $('#fvl-worker').textContent;
@@ -1009,9 +1078,9 @@ A **WebWorker** is a second thread with no access to the page. It can only compu
 - `w.onmessage` and `w.onerror` decide what happens when the worker replies or crashes. On a crash, `fallback` switches to main-thread mode.
 - **ping:** a first message `{op: 'ping'}`. When the answer arrives, `mode` becomes `'worker'` and the green dot appears. If there is no answer within 6 s, the app falls back.
 
-**The whole worker** (lines 2967–2978):
+**The whole worker** (lines 3125–3136):
 ```js
-// food-vision-lab.html lines 2967–2978
+// food-vision-lab.html lines 3125–3136
 <script id="fvl-worker" type="text/plain">
 /* WebWorker entry: the core library above is prepended to this script in a Blob URL. */
 self.onmessage = function (e) {
@@ -1031,9 +1100,9 @@ self.onmessage = function (e) {
 - `self.postMessage({ id, ok: true, result }, self.FVL.transferables(result))` sends the answer back. The second argument lists the memory blocks to *move* rather than copy.
 - On an exception it sends `{ id, ok: false, error }`, so the page can show "Analysis failed: …".
 
-**The dispatcher** (lines 2937–2948), a simple `switch` on the job name:
+**The dispatcher** (lines 3095–3106), a simple `switch` on the job name:
 ```js
-// food-vision-lab.html lines 2937–2948
+// food-vision-lab.html lines 3095–3106
 /* Operation dispatcher shared by the WebWorker and the main-thread fallback. */
 FVL.dispatch = function (op, a, progress) {
   switch (op) {
@@ -1052,7 +1121,7 @@ FVL.dispatch = function (op, a, progress) {
 
 RPC means "remote procedure call". The page wants to write `const r = await Engine.call('color', {...})` as if the worker were a normal function. Lines 3043–3060:
 ```js
-// food-vision-lab.html lines 3043–3060
+// food-vision-lab.html lines 3201–3218
   onMessage(d) {
     const p = this.pending.get(d.id); if (!p) return;
     if (d.progress) { if (p.onProgress) p.onProgress(d.progress.i, d.progress.n, d.progress.r); return; }
@@ -1083,13 +1152,13 @@ RPC means "remote procedure call". The page wants to write `const r = await Engi
   - Otherwise it deletes the entry and calls `resolve(result)` or `reject(error)`. The `await` in the caller then continues.
 - `busy` counts running jobs, for the "WebWorker · segmentation" text in the header.
 
-**Main-thread fallback** (`local`, lines 3061–3066): if workers are impossible, the same `F.dispatch` runs on the main thread after a 30 ms `setTimeout`, so the "Analysing…" badge can draw first. Results are identical, but the page freezes during heavy jobs.
+**Main-thread fallback** (`local`, lines 3219–3224): if workers are impossible, the same `F.dispatch` runs on the main thread after a 30 ms `setTimeout`, so the "Analysing…" badge can draw first. Results are identical, but the page freezes during heavy jobs.
 
 ## 2.4 Copy vs move (transfer)
 
 `postMessage` normally **copies** data (the "structured clone"). The input photo the page sends is copied: 7.7 MB for a 1600×1200 photo, which takes a few milliseconds.
 
-For results, the worker **transfers** the buffers instead. Ownership moves to the page in no time, and the worker's copy becomes empty ("detached"). `FVL.transferables` (lines 2950–2961) walks the result object and collects every typed array's `.buffer`:
+For results, the worker **transfers** the buffers instead. Ownership moves to the page in no time, and the worker's copy becomes empty ("detached"). `FVL.transferables` (lines 3108–3119) walks the result object and collects every typed array's `.buffer`:
 - `ArrayBuffer.isView(o)` is true for any typed array.
 - It skips arrays of plain numbers and stops at depth 8 for safety.
 - A `Set` makes sure each buffer is listed once. Listing one twice is an error.
@@ -1122,16 +1191,16 @@ sequenceDiagram
 ```
 
 The same steps in words, with the code locations:
-1. **You pick a file.** `wireDrop` (line 3386) calls `Color.loadFile(file)` (line 3492).
-2. **Decode and read pixels.** `readImageFile` (lines 3371–3385):
+1. **You pick a file.** `wireDrop` (line 3544) calls `Color.loadFile(file)` (line 3660).
+2. **Decode and read pixels.** `readImageFile` (lines 3529–3543):
    - `createImageBitmap(file)` decodes the JPEG/PNG.
    - Images larger than 1600 px are shrunk.
    - The image is drawn on a hidden canvas, and `getImageData` returns the RGBA bytes.
-3. **Store and start.** `this.img = r.image` stores the photo. The White ROI tool is selected, and `this.run()` starts the analysis. `makeRunner` (line 3078) guarantees only one analysis runs at a time: if you change a setting mid-run, it runs once more afterwards instead of queueing ten runs. Settings changes also wait 220 ms (`debounce`) so typing doesn't trigger a run per keystroke.
-4. **Send the job.** `analyze()` (line 3520) calls `await Engine.call('color', { image: this.img, opts: this.opts })`, which leads to `postMessage`. The photo is copied into the worker.
-5. **Compute.** The worker runs `analyzeColor` (lines 1816–1961): white balance → per-pixel Lab (1.2–1.3) → automatic sample mask → reference colour → ΔE, BI, WI, C\*, h° maps → statistics, histograms, a\*b\* density, ΔE classes, patch check.
+3. **Store and start.** `this.img = r.image` stores the photo. The White ROI tool is selected, and `this.run()` starts the analysis. `makeRunner` (line 3236) guarantees only one analysis runs at a time: if you change a setting mid-run, it runs once more afterwards instead of queueing ten runs. Settings changes also wait 220 ms (`debounce`) so typing doesn't trigger a run per keystroke.
+4. **Send the job.** `analyze()` (line 3696) calls `await Engine.call('color', { image: this.img, opts: this.opts })`, which leads to `postMessage`. The photo is copied into the worker.
+5. **Compute.** The worker runs `analyzeColor` (lines 1903–2073): white balance → per-pixel Lab (1.2–1.3) → automatic sample mask → reference colour → ΔE, BI, WI, C\*, h° maps → statistics, histograms, a\*b\* density, ΔE classes, patch check.
 6. **Reply.** The result's typed arrays are transferred back.
-7. **Draw the map.** `paint()` (lines 3534–3565):
+7. **Draw the map.** `paint()` (lines 3710–3741):
    - For each pixel inside the mask, the map value is scaled to 0–255 between the 1st and 99th percentile.
    - That number picks a colour from the 256-entry colour table (`FVL.colormap`).
    - It is blended with the corrected photo by the opacity slider. Pixels outside the mask are dimmed.
@@ -1150,22 +1219,24 @@ Each item has four parts:
 
 ## A. Colour
 
-### A1. A phone camera is not a colorimeter *(the biggest one)*
+### A1. A phone camera is not a colorimeter *(the biggest one) · now fixable in the app*
 **Assumed:** the photo's pixel values are true sRGB, so linearising with the sRGB curve gives physically proportional light.
 
 **Reality:** phone cameras apply their own tone curves, contrast boosts, local brightening, saturation and sharpening. Their sensor colours also leak into each other ("crosstalk"). A white tile corrects only an overall multiplication.
 
 **Measured:** I simulated a camera with a non-sRGB curve, mild contrast boost and channel crosstalk, then photographed a 22-patch chart with it.
-- With the shipped pipeline (sRGB curve + white-tile gains), the patch errors averaged **ΔE00 3.49 (worst 5.87)**.
+- With white-tile gains only, the patch errors averaged **ΔE00 3.49 (worst 5.87)**.
 - The grey patches came out with L\* errors of **+3.2, +2.8, +0.2, −2.1, −1.9** from light to dark.
 
 **How you notice:** photograph a colour chart with known values next to the sample. In the Calibration-check table:
 - If grey patches of different lightness drift up and down like this, the tone curve isn't sRGB.
 - If coloured patches are off by more than 2, the colours need a matrix.
 
-**Fix (tested):** fit a per-channel linearisation from the grey patches, then a least-squares 3×3 colour-correction matrix (CCM) from all patches. On the same simulation, scored fairly (each patch predicted by a matrix fitted *without* it), errors fell to **mean ΔE00 0.22, worst 0.41**, and grey L\* errors to ≤ 0.1.
+**Fix (now in the app):** set **Correction → Colour chart**, mark the chart's patches with the **Patch** tool and type their certified values. The app fits a tone curve from the grey patches and a 3×3 matrix from all patches (code in 1.2). The self-test "Colour-matrix calibration fixes a non-sRGB phone camera" runs the same simulated camera: **mean ΔE00 3.49 → 0.47 (worst 1.30)**, scored leave-one-out.
 
-Use the matrix *instead of* the diagonal gains: linearise each pixel with `toLinear`, apply `applyCCM(M, …)`, then call `FVL.linearToLab`. Also lock exposure and white balance, and shoot RAW/DNG if your phone allows (procedure).
+One honest limit: the leave-one-out check refits the matrix without each patch, but the grey tone curve is still fitted using all grey patches, so grey-patch errors are slightly optimistic. Also lock exposure and white balance, and shoot RAW/DNG if your phone allows (procedure).
+
+The standalone version below is useful if you want the same fit outside the app:
 ```js
 // (1) Linearise each channel from grey patches of known L* instead of trusting the sRGB curve.
 //     Interpolates ln(linear) against ln(code), so a camera power-law curve is followed exactly.
@@ -1198,10 +1269,6 @@ function fitCCM(cam, ref) {
 }
 const applyCCM = (M, v) => [M[0] * v[0] + M[1] * v[1] + M[2] * v[2], M[3] * v[0] + M[4] * v[1] + M[5] * v[2], M[6] * v[0] + M[7] * v[1] + M[8] * v[2]];
 ```
-
-How it works:
-- `fitLinearization` interpolates log(linear light) against log(code value), so a power-law camera curve is followed exactly between grey patches.
-- `fitCCM` solves the "normal equations" (XᵀX)m = Xᵀy for each output channel, the same least squares as fitting a line, but with 3 inputs.
 
 ### A2. D65 light and the 2° observer
 **Assumed:** L\*a\*b\* are relative to D65 daylight and the 2° standard observer (`WHITE` = 0.95047, 1, 1.08883).
@@ -1292,10 +1359,10 @@ function flatField(img, card) {                     // both {width, height, data
 
 **Fix (procedure):** even illumination and Köhler alignment on the microscope, or a flat-field image (A4) before analysis.
 
-### B2. Otsu compares half a grey level off
-Otsu counts a blurred value of 104.3 as bin 104. With an integer threshold t = 104, that is the background class. But the mask uses `blur > thr`, which makes 104.3 an object.
+### B2. Otsu compared half a grey level off *(fixed)*
+Otsu counts a blurred value of 104.3 as bin 104, so with t = 104 it belongs to the background class. The old mask used `blur > thr`, which made 104.3 an object.
 
-This only affects pixels within half a grey level of the threshold, so the effect is tiny. **One-line fix:** compare `Math.round(blur[i]) > thr` in `analyzeParticles` (line 1982).
+The mask now compares `Math.round(blur[i]) > thr`, matching Otsu's own counting, in both `analyzeParticles` and `segmentObject`. The effect was tiny: only pixels within half a grey level of the threshold changed.
 
 ### B3. Blur makes small objects measure smaller
 Blurring then thresholding pulls the edge of a small round object inward. In my emulsion tests it was about 0.25 px of radius, about 3% of an 18 px droplet's diameter.
@@ -1304,77 +1371,35 @@ Blurring then thresholding pulls the edge of a small round object inward. In my 
 
 **Fix:** use the smallest σ that removes noise, and keep objects at least about 10 px across (higher magnification).
 
-### B4. My marker step is not textbook h-maxima *(a real deviation, found while writing these notes)*
-**Assumed (and claimed in the app's Methods text):** markers are the h-maxima, i.e. hilltops whose dip to a higher hill is ≥ h.
+### B4. The marker step was not textbook h-maxima *(found while writing these notes · fixed)*
+**What the old code did:** it marked pixels where D − R ≥ h. That rule never merges hills of exactly equal height, whatever h is. Equal distance values are common in digital images (√2, 2, √5 keep repeating).
 
-**What the code actually does:** it marks pixels where D − R ≥ h. That rule never merges hills of **exactly equal height**, whatever h is. Equal distance values are common in digital images (√2, 2, √5 keep repeating).
+**What it does now:** it takes the regional maxima of R (code in 1.7). Hills joined by a dip smaller than h become one plateau of R, so they share one marker.
 
-**Measured:**
+**Measured before → after:**
 
-| test | shipped code | textbook version |
+| test | old rule | new rule |
 |---|---|---|
-| Part 1 mask, h = 1.5 (dip only 1) | 2 objects | 1 object |
-| one rod-shaped particle, any h from 0.5 to 2 | split into 2 | kept as 1 |
+| Part 1 mask, h = 1.5 (dip only 1) | 2 objects | **1 object** |
+| one rod-shaped particle, any h from 0.5 to 2 | split into 2 | **kept as 1** |
 | emulsions (4 images) | identical | identical |
-| powder, spurious fragments | 8–10 per image | 1 per image |
+| powder, spurious fragments | 8–10 per image | **1 per image** |
 | powder, count error | −5 to −11% | −8 to −15% |
 
-**The uncomfortable part:** the shipped code's powder count looked better only because false splits were cancelling real merges. The honest powder undercount is 8–15%.
+The old powder count only *looked* better because false splits were cancelling real merges. The new numbers are the honest ones (B5). A self-test now covers the equal-hill and rod cases.
 
-**Fix (tested):** take the regional maxima of R instead. Call `hMaximaMarkersStd` where `analyzeParticles` calls `hMaximaMarkers` (line 1991).
-```js
-// Textbook h-maxima markers: the regional maxima of R = reconstruction(D − h under D).
-// Equal-height peaks joined by a saddle less than h below them become ONE plateau of R,
-// so they share one marker (the shipped hMaximaMarkers keeps them apart).
-const N8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-function regionalMaxima(img, dom, w, h, eps = 1e-6) {
-  const N = w * h, lab = new Int32Array(N), q = new Int32Array(N);
-  let count = 0;
-  for (let s = 0; s < N; s++) {
-    if (!dom[s] || lab[s] !== 0) continue;
-    const v = img[s];
-    let head = 0, tail = 0, isMax = true;
-    q[tail++] = s; lab[s] = -1;                       // -1 = in the plateau being flooded
-    while (head < tail) {
-      const i = q[head++], x = i % w, y = (i / w) | 0;
-      for (const [dx, dy] of N8) {
-        const xx = x + dx, yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        const j = yy * w + xx;
-        if (!dom[j]) continue;
-        if (img[j] > v + eps) isMax = false;           // a higher neighbour: not a maximum
-        else if (Math.abs(img[j] - v) <= eps && lab[j] === 0) { lab[j] = -1; q[tail++] = j; }
-      }
-    }
-    const id = isMax ? ++count : -2;                   // -2 = visited, not a maximum
-    for (let t = 0; t < tail; t++) lab[q[t]] = id;
-  }
-  for (let i = 0; i < N; i++) if (lab[i] < 0) lab[i] = 0;
-  return { markers: lab, count };
-}
-function hMaximaMarkersStd(dist, fg, w, h, hval) {
-  const marker = new Float32Array(dist.length);
-  for (let i = 0; i < marker.length; i++) marker[i] = dist[i] - hval;
-  const R = FVL.reconstructByDilation(marker, dist, fg, w, h);
-  return regionalMaxima(R, fg, w, h);
-}
-```
-
-How it works:
-- `regionalMaxima` floods each plateau of equal R value with a queue.
-- If any neighbour of the plateau is higher, it is not a maximum.
-- Otherwise the whole plateau becomes one marker.
-
-### B5. Touching objects stay merged
+### B5. Touching objects stay merged *(a real limit of the method, not fixed)*
 Distance-map watershed cannot split objects whose contact neck is almost as wide as the smaller object. In the tests:
 - emulsions undercount by 2–4% (about 15–20 merged pairs per image)
-- angular powders undercount by 8–15% (B4 numbers)
+- angular powders undercount by **8–15%** across random images (B4 numbers); powder d32 stays within about 4%
+
+The powder test tolerances were set to match: ±12% on the default image and ±16% in the seed sweep.
 
 **How you notice:**
 - Turn watershed off and on and compare the count.
 - Sort the table by solidity: merged pairs have solidity below about 0.85 and aspect ratio above about 1.6.
 
-**Partial fix (tested, modest gain):** find markers on a 2× upsampled image, where necks are resolved twice as finely. Measured merges fell from 17→14, 20→15, 15→13 and 18→18 on four emulsion images, and by 0–3 on powders. It costs about 4× the computing time.
+**Partial fix (tested, modest gain, not in the app):** find markers on a 2× upsampled image, where necks are resolved twice as finely. Measured merges fell from 17→14, 20→15, 15→13 and 18→18 on four emulsion images, and by 0–3 on powders, at about 4× the computing time. `hMaximaMarkersStd` in this code is the same as the app's new `hMaximaMarkers`.
 ```js
 // Find watershed markers on a 2× bilinearly upsampled copy of the smoothed image, where the
 // neck between touching objects is resolved twice as finely, then map them back to the original grid.
@@ -1413,12 +1438,18 @@ function markersUpsampled(blur, thr, bright, morph, w, h, o, f = 2) {
 
 The real fix for powders is physical: disperse the sample so particles don't touch.
 
-### B6. Excluding edge-cut objects biases the sizes
-**Assumed:** dropping objects that touch the image edge is harmless.
+### B6. Excluding edge-cut objects biased the sizes *(fixed)*
+**The problem:** big objects touch the image edge more often, so they are dropped more often, and the size distribution shifts toward small objects. My original validation hid this, because the ground truth was filtered the same way.
 
-**Reality:** big objects touch the edge more often, so they are dropped more often, and the size distribution shifts toward small objects. My validation hid this, because the ground truth was filtered the same way.
+**Now:** when "Exclude objects cut by the edge" is on, each counted object gets an **edge weight**:
 
-**Fix (formula, not tested here):** weight each counted object by (W·H) / ((W − b_w)(H − b_h)), where b_w × b_h is its bounding box (the Miles–Lantuéjoul correction). Use these weights when computing percentiles.
+W·H / ((W − b_w − 1)(H − b_h − 1))
+
+where b_w × b_h is its bounding box in pixels. That is how many objects it stands for (the Miles–Lantuéjoul correction). `sizeStats` uses these weights in every mean, moment and percentile. The weight is a column in the object table and the CSV, and the summary says "edge-corrected".
+
+**Measured** (self-test "Edge-exclusion bias removed…", large particles in a small frame): Dv50 bias **−19.8% → −3.6%**. The remaining gap is particles too big ever to fit fully inside the frame; no method can recover those.
+
+On the app's own test images the bias was tiny (0.1–0.3% for emulsions), because the objects are small next to the frame. The ground-truth comparison now uses *every* object centred in the frame, which is what the corrected statistics estimate.
 
 ### B7. A flat image of a 3-D sample
 A confocal slice or a cut bread surface cuts spheres at random heights, so the circles you see are usually **smaller** than the spheres. d32 and volume-weighted D-values from 2-D circles therefore underestimate the real 3-D sizes. This is the "Wicksell problem". Area fraction equals volume fraction only for thin random cuts (the Delesse principle); thick optical sections overestimate it (the Holmes effect).
@@ -1454,9 +1485,9 @@ The µm/px scale is whatever you type. Lenses also bend straight lines near the 
   - colour tiles measured with a spectrophotometer
   - certified size-standard microspheres
   - a stage micrometer
-- **D2. One test name overstates.** "ΔE map is zero at the reference colour" actually reads 1.13. The reference is a 5×5 average, so the test only checks that the map matches a direct calculation.
+- **D2. One test name overstated (fixed).** "ΔE map is zero at the reference colour" actually read 1.13, because the reference is a 5×5 average. It is now called "ΔE map equals a direct ΔE00 calculation at the picked pixel", which is what it checks.
 - **D3. I changed some tolerances after seeing results.**
-  - The powder count tolerance went from 8% to 12%, which B4 shows is still flattering.
+  - The powder count tolerance went from 8% to 12% (16% in the seed sweep). After the B4 fix this reflects the honest 8–15% undercount instead of hiding it.
   - Feret went from % to ±1 px.
   - The Sierpiński carpet test switched to powers-of-3 boxes.
   - The colour test switched from per-pixel error to mean-colour bias.
