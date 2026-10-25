@@ -66,10 +66,7 @@ Results come from the in-page validation suite (54 checks, all passing) and the 
 - **Feret diameters carry about ±1 px digitisation error.** Circularity of small objects is capped at 1.
 - **Perimeter can be off by up to ±4 % for some edge angles.** The isotropic perimeter correction is unbiased on average but depends on edge orientation for long straight edges.
 - **Box counting has known biases.** It reads about 0.97 for smooth curves (finite-size bias). On strictly self-similar fractals it needs box sizes matched to the fractal's ratio: the carpet gives 1.83 with √2 steps and 1.893 with 3ᵏ boxes.
-- **White-tile mode is a diagonal (von Kries) correction.** It removes illuminant casts of that form only. Use colour-chart mode for real phone photos. Neither mode corrects non-uniform lighting: photograph a white card and flat-field first (see the study notes, audit A4).
-
-## Learning the code
-`STUDY_NOTES_EXPLAINED_SIMPLY.md` walks through every algorithm by hand on a 3×3 example, explains the worker architecture, audits the method's limits and gives a 7-day plan to rebuild the app yourself.
+- **White-tile mode is a diagonal (von Kries) correction.** It removes illuminant casts of that form only. Use colour-chart mode for real phone photos. Neither mode corrects non-uniform lighting: photograph a white card and flat-field first.
 
 ## Tests
 ```bash
